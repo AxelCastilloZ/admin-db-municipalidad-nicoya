@@ -1,5 +1,5 @@
 
--- Creación de Tabla Contribuyente
+-- Creaciï¿½n de Tabla Contribuyente
 USE MunicipalidadNicoya
 GO
 IF OBJECT_ID('dbo.Contribuyente_Inmueble', 'U') IS NOT NULL
@@ -28,7 +28,7 @@ CREATE TABLE dbo.Contribuyente
     direccion VARCHAR(255) NULL,
     
     CONSTRAINT PK_Contribuyente PRIMARY KEY (contribuyente_id),
-    CONSTRAINT CK_Contribuyente_Tipo CHECK (tipo_contribuyente IN ('Física', 'Jurídica')),
+    CONSTRAINT CK_Contribuyente_Tipo CHECK (tipo_contribuyente IN ('Fï¿½sica', 'Jurï¿½dica')),
     CONSTRAINT CK_Contribuyente_Email CHECK (email LIKE '%@%' OR email IS NULL)
 );
 GO
@@ -112,4 +112,43 @@ CREATE TABLE Usuario (
     CONSTRAINT FK_Usuario_Rol FOREIGN KEY (rol_id) REFERENCES Rol(rol_id),
     CONSTRAINT CK_Usuario_Email CHECK (email LIKE '%@%.%')
 );
+GO
+
+-- ============================================
+-- TABLA: Tramite
+-- ============================================
+
+CREATE TABLE Tramite
+(
+  tramite_id         INT IDENTITY(1,1) NOT NULL,
+  fecha_ingreso      DATE NOT NULL,
+  fecha_resolucion   DATE NOT NULL,
+  observaciones      VARCHAR(255) NOT NULL,
+  estado_actual      VARCHAR(20) NOT NULL,
+  tipo_tramite_id    INT NOT NULL,
+  contribuyente_id   INT NOT NULL,
+  inmueble_id        INT NOT NULL,
+
+  CONSTRAINT PK_Tramite PRIMARY KEY (tramite_id),
+
+  -- Checks (uno de lista y otro de coherencia de fechas)
+  CONSTRAINT CK_Tramite_EstadoActual
+    CHECK (estado_actual IN ('En Proceso', 'Aprobado', 'Rechazado', 'Finalizado')),
+  CONSTRAINT CK_Tramite_Fechas
+    CHECK (fecha_resolucion >= fecha_ingreso),
+
+  -- FKs
+  CONSTRAINT FK_Tramite_TipoTramite
+    FOREIGN KEY (tipo_tramite_id) REFERENCES Tipo_Tramite(tipo_tramite_id),
+  CONSTRAINT FK_Tramite_Contribuyente
+    FOREIGN KEY (contribuyente_id) REFERENCES Contribuyente(contribuyente_id),
+  CONSTRAINT FK_Tramite_Inmueble
+    FOREIGN KEY (inmueble_id) REFERENCES Inmueble(inmueble_id)
+)
+GO
+
+--DEFAULTS Tabla Tramite
+ALTER TABLE Tramite
+ADD CONSTRAINT DF_Tramite_EstadoActual
+    DEFAULT ('En Proceso') FOR estado_actual;
 GO

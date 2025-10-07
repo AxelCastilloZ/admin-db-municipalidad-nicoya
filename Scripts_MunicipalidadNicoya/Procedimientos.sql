@@ -20,10 +20,10 @@ BEGIN
     SET NOCOUNT ON;
     
     BEGIN TRY
-        -- Validar que la cédula no exista
+        -- Validar que la cï¿½dula no exista
         IF EXISTS (SELECT 1 FROM Contribuyente WHERE cedula = @cedula)
         BEGIN
-            RAISERROR('La cédula ya está registrada en el sistema', 16, 1);
+            RAISERROR('La cï¿½dula ya estï¿½ registrada en el sistema', 16, 1);
             RETURN;
         END
         
@@ -64,7 +64,7 @@ BEGIN
 END;
 GO
 
--- SP: Consultar Contribuyente por Cédula
+-- SP: Consultar Contribuyente por Cï¿½dula
 CREATE PROCEDURE sp_Contribuyente_ConsultarPorCedula
     @cedula VARCHAR(20)
 AS
@@ -124,12 +124,12 @@ BEGIN
             RETURN;
         END
         
-        -- Validar que la cédula no esté duplicada (excepto para el mismo contribuyente)
+        -- Validar que la cï¿½dula no estï¿½ duplicada (excepto para el mismo contribuyente)
         IF EXISTS (SELECT 1 FROM Contribuyente 
                    WHERE cedula = @cedula 
                    AND contribuyente_id <> @contribuyente_id)
         BEGIN
-            RAISERROR('La cédula ya está registrada por otro contribuyente', 16, 1);
+            RAISERROR('La cï¿½dula ya estï¿½ registrada por otro contribuyente', 16, 1);
             RETURN;
         END
         
@@ -169,7 +169,7 @@ BEGIN
             RETURN;
         END
         
-        -- TODO: Aquí deberías validar que no tenga inmuebles o deudas asociadas
+        -- TODO: Aquï¿½ deberï¿½as validar que no tenga inmuebles o deudas asociadas
         -- Por ahora lo dejamos simple
         
         -- Eliminar el contribuyente
@@ -190,8 +190,8 @@ GO
 -- Insertar un contribuyente de prueba
 EXEC sp_Contribuyente_Insertar 
     @cedula = '123456789',
-    @nombre = 'Juan Pérez Gómez',
-    @tipo = 'Física',
+    @nombre = 'Juan Pï¿½rez Gï¿½mez',
+    @tipo = 'Fï¿½sica',
     @telefono = '8888-8888',
     @email = 'juan@email.com',
     @direccion = 'Nicoya, Guanacaste';
@@ -224,10 +224,10 @@ BEGIN
     DECLARE @ErrorMessage NVARCHAR(4000);
     
     BEGIN TRY
-        -- Validar que la cédula no exista
+        -- Validar que la cï¿½dula no exista
         IF EXISTS (SELECT 1 FROM Contribuyente_fisico WHERE cedula = @cedula)
         BEGIN
-            RAISERROR('La cédula ya está registrada', 16, 1);
+            RAISERROR('La cï¿½dula ya estï¿½ registrada', 16, 1);
             RETURN;
         END
         
@@ -235,7 +235,7 @@ BEGIN
         
         -- Insertar en tabla padre Contribuyente
         INSERT INTO Contribuyente (tipo_contribuyente, telefono, email, direccion)
-        VALUES ('Física', @telefono, @email, @direccion);
+        VALUES ('Fï¿½sica', @telefono, @email, @direccion);
         
         -- Obtener el ID generado
         SET @contribuyente_id = SCOPE_IDENTITY();
@@ -282,10 +282,10 @@ BEGIN
     DECLARE @ErrorMessage NVARCHAR(4000);
     
     BEGIN TRY
-        -- Validar que la cédula jurídica no exista
+        -- Validar que la cï¿½dula jurï¿½dica no exista
         IF EXISTS (SELECT 1 FROM Contribuyente_juridico WHERE cedula_juridica = @cedula_juridica)
         BEGIN
-            RAISERROR('La cédula jurídica ya está registrada', 16, 1);
+            RAISERROR('La cï¿½dula jurï¿½dica ya estï¿½ registrada', 16, 1);
             RETURN;
         END
         
@@ -300,7 +300,7 @@ BEGIN
         
         -- Insertar en tabla padre Contribuyente
         INSERT INTO Contribuyente (tipo_contribuyente, telefono, email, direccion)
-        VALUES ('Jurídica', @telefono, @email, @direccion);
+        VALUES ('Jurï¿½dica', @telefono, @email, @direccion);
         
         -- Obtener el ID generado
         SET @contribuyente_id = SCOPE_IDENTITY();
@@ -344,13 +344,13 @@ BEGIN
         c.telefono,
         c.email,
         c.direccion,
-        -- Datos de persona física
+        -- Datos de persona fï¿½sica
         cf.contribuyentes_fisicos_id,
         cf.cedula,
         cf.nombre,
         cf.apellido1,
         cf.apellido2,
-        -- Datos de persona jurídica
+        -- Datos de persona jurï¿½dica
         cj.contribuyentes_fisicos_id AS contribuyente_juridico_id,
         cj.cedula_juridica,
         cj.nombre_empresa,
@@ -378,12 +378,12 @@ BEGIN
         c.telefono,
         c.email,
         c.direccion,
-        -- Datos de persona física
+        -- Datos de persona fï¿½sica
         cf.cedula,
         cf.nombre,
         cf.apellido1,
         cf.apellido2,
-        -- Datos de persona jurídica
+        -- Datos de persona jurï¿½dica
         cj.cedula_juridica,
         cj.nombre_empresa,
         cj.representante_legal_id
@@ -419,7 +419,7 @@ BEGIN
         
         BEGIN TRANSACTION;
         
-        -- Las tablas hijas se eliminan automáticamente por CASCADE
+        -- Las tablas hijas se eliminan automï¿½ticamente por CASCADE
         DELETE FROM Contribuyente WHERE contribuyente_id = @contribuyente_id;
         
         COMMIT TRANSACTION;
@@ -438,7 +438,7 @@ BEGIN
 END;
 GO
 
--- Probar inserción directa
+-- Probar inserciï¿½n directa
 EXEC sp_Contribuyente_InsertarFisico
     @cedula = '504570381',
     @nombre = 'Greilyn',
@@ -482,7 +482,7 @@ BEGIN
         
         IF EXISTS (SELECT 1 FROM Usuario WHERE email = @email)
         BEGIN
-            THROW 50001, 'El email ya está registrado', 1;
+            THROW 50001, 'El email ya estï¿½ registrado', 1;
         END
         
         IF NOT EXISTS (SELECT 1 FROM Rol WHERE rol_id = @rol_id)
@@ -686,7 +686,7 @@ BEGIN
                    WHERE email = @email 
                    AND usuario_id <> @usuario_id)
         BEGIN
-            RAISERROR('El email ya está en uso', 16, 1);
+            RAISERROR('El email ya estï¿½ en uso', 16, 1);
             RETURN;
         END
         
@@ -707,7 +707,7 @@ BEGIN
 END
 GO
 
--- SP: Eliminar Usuario (lógico)
+-- SP: Eliminar Usuario (lï¿½gico)
 CREATE OR ALTER PROCEDURE sp_Usuario_Eliminar
     @usuario_id INT
 AS
@@ -734,7 +734,7 @@ BEGIN
 END
 GO
 
--- VERIFICACIÓN
+-- VERIFICACIï¿½N
 -- Ver roles creados
 SELECT * FROM Rol;
 
@@ -751,3 +751,218 @@ EXEC sp_Usuario_Registrar
     @rol_id = 1; -- Administrador
 
     select * from Usuario
+
+-----------------------
+--TRAMITES
+-----------------------
+-- SP: Insertar Tramite
+CREATE PROCEDURE dbo.sp_tramite_insertar
+    @fecha_ingreso DATE,
+    @fecha_resolucion DATE,                -- NOT NULL en tu tabla; valida >= ingreso
+    @observaciones VARCHAR(255),
+    @tipo_tramite_id INT,
+    @contribuyente_id INT,
+    @inmueble_id INT,
+    @estado_actual VARCHAR(20) = 'En Proceso'  -- usa tu DEFAULT/CK
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    IF @estado_actual NOT IN ('En Proceso','Aprobado','Rechazado','Finalizado')
+    BEGIN RAISERROR('Estado invÃ¡lido.',16,1); RETURN; END
+
+    IF @fecha_resolucion < @fecha_ingreso
+    BEGIN RAISERROR('fecha_resolucion debe ser >= fecha_ingreso.',16,1); RETURN; END
+
+    IF NOT EXISTS(SELECT 1 FROM dbo.Tipo_Tramite WHERE tipo_tramite_id=@tipo_tramite_id)
+    BEGIN RAISERROR('tipo_tramite_id no existe.',16,1); RETURN; END
+
+    IF NOT EXISTS(SELECT 1 FROM dbo.Contribuyente WHERE contribuyente_id=@contribuyente_id)
+    BEGIN RAISERROR('contribuyente_id no existe.',16,1); RETURN; END
+
+    IF NOT EXISTS(SELECT 1 FROM dbo.Inmueble WHERE inmueble_id=@inmueble_id)
+    BEGIN RAISERROR('inmueble_id no existe.',16,1); RETURN; END
+
+    INSERT INTO dbo.Tramite(fecha_ingreso, fecha_resolucion, observaciones, estado_actual,
+                             tipo_tramite_id, contribuyente_id, inmueble_id)
+    VALUES (@fecha_ingreso, @fecha_resolucion, @observaciones, @estado_actual,
+            @tipo_tramite_id, @contribuyente_id, @inmueble_id);
+
+    SELECT SCOPE_IDENTITY() AS tramite_id;
+END
+GO
+-- SP: Actualizar Tramite
+CREATE PROCEDURE dbo.sp_tramite_actualizar
+    @tramite_id INT,
+    @fecha_ingreso DATE,
+    @fecha_resolucion DATE,
+    @observaciones VARCHAR(255),
+    @tipo_tramite_id INT,
+    @contribuyente_id INT,
+    @inmueble_id INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    IF NOT EXISTS(SELECT 1 FROM dbo.Tramite WHERE tramite_id=@tramite_id)
+    BEGIN RAISERROR('El trÃ¡mite no existe.',16,1); RETURN; END
+
+    IF @fecha_resolucion < @fecha_ingreso
+    BEGIN RAISERROR('fecha_resolucion debe ser >= fecha_ingreso.',16,1); RETURN; END
+
+    IF NOT EXISTS(SELECT 1 FROM dbo.Tipo_Tramite WHERE tipo_tramite_id=@tipo_tramite_id)
+    BEGIN RAISERROR('tipo_tramite_id no existe.',16,1); RETURN; END
+
+    IF NOT EXISTS(SELECT 1 FROM dbo.Contribuyente WHERE contribuyente_id=@contribuyente_id)
+    BEGIN RAISERROR('contribuyente_id no existe.',16,1); RETURN; END
+
+    IF NOT EXISTS(SELECT 1 FROM dbo.Inmueble WHERE inmueble_id=@inmueble_id)
+    BEGIN RAISERROR('inmueble_id no existe.',16,1); RETURN; END
+
+    UPDATE dbo.Tramite
+    SET fecha_ingreso=@fecha_ingreso,
+        fecha_resolucion=@fecha_resolucion,
+        observaciones=@observaciones,
+        tipo_tramite_id=@tipo_tramite_id,
+        contribuyente_id=@contribuyente_id,
+        inmueble_id=@inmueble_id
+    WHERE tramite_id=@tramite_id;
+
+    SELECT 1 AS resultado;
+END
+GO
+
+-- SP: Listar Tramite
+CREATE PROCEDURE dbo.sp_Tramite_Listar
+AS
+BEGIN
+  SET NOCOUNT ON;
+
+  SELECT 
+      tramite_id,
+      fecha_ingreso,
+      fecha_resolucion,
+      observaciones,
+      estado_actual,
+      tipo_tramite_id,
+      contribuyente_id,
+      inmueble_id
+  FROM dbo.Tramite
+  ORDER BY fecha_ingreso DESC;
+END
+GO
+
+-- SP: Eliminar Tramite solo si estÃ¡ "En Proceso"
+CREATE PROCEDURE dbo.sp_tramite_eliminar
+    @tramite_id INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    IF NOT EXISTS(SELECT 1 FROM dbo.Tramite WHERE tramite_id=@tramite_id)
+    BEGIN RAISERROR('El trÃ¡mite no existe.',16,1); RETURN; END
+
+    IF EXISTS(SELECT 1 FROM dbo.Tramite WHERE tramite_id=@tramite_id AND estado_actual <> 'En Proceso')
+    BEGIN RAISERROR('Solo se puede eliminar un trÃ¡mite con estado "En Proceso".',16,1); RETURN; END
+
+    DELETE FROM dbo.Tramite WHERE tramite_id=@tramite_id;
+    SELECT 1 AS resultado;
+END
+GO
+
+--SP: Cambiar estado
+CREATE PROCEDURE dbo.sp_tramite_actualizar_estado
+    @tramite_id INT,
+    @nuevo_estado VARCHAR(20),
+    @observaciones VARCHAR(255) = NULL,
+    @fecha_resolucion DATE = NULL
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    IF @nuevo_estado NOT IN ('En Proceso','Aprobado','Rechazado','Finalizado')
+    BEGIN RAISERROR('Estado invÃ¡lido.',16,1); RETURN; END
+
+    IF NOT EXISTS(SELECT 1 FROM dbo.Tramite WHERE tramite_id=@tramite_id)
+    BEGIN RAISERROR('El trÃ¡mite no existe.',16,1); RETURN; END
+
+    DECLARE @fecha_ingreso DATE;
+    SELECT @fecha_ingreso = fecha_ingreso FROM dbo.Tramite WHERE tramite_id=@tramite_id;
+
+    -- si se finaliza/aprueba/rechaza y no pasan fecha, usamos hoy pero aseguramos coherencia
+    IF @nuevo_estado IN ('Aprobado','Rechazado','Finalizado')
+    BEGIN
+        SET @fecha_resolucion = COALESCE(@fecha_resolucion, CAST(GETDATE() AS DATE));
+        IF @fecha_resolucion < @fecha_ingreso
+            SET @fecha_resolucion = @fecha_ingreso;
+    END
+    ELSE
+    BEGIN
+        -- En Proceso: mantenemos la fecha_resolucion actual
+        SELECT @fecha_resolucion = fecha_resolucion FROM dbo.Tramite WHERE tramite_id=@tramite_id;
+    END
+
+    UPDATE dbo.Tramite
+    SET estado_actual = @nuevo_estado,
+        observaciones = COALESCE(@observaciones, observaciones),
+        fecha_resolucion = @fecha_resolucion
+    WHERE tramite_id=@tramite_id;
+
+    SELECT 1 AS resultado;
+END
+GO
+
+--SP: Consultar por ID
+CREATE PROCEDURE dbo.sp_tramite_consultar_por_id
+  @tramite_id INT
+AS
+BEGIN
+  SET NOCOUNT ON;
+
+  SELECT TOP 1
+      tramite_id,
+      fecha_ingreso,
+      fecha_resolucion,
+      observaciones,
+      estado_actual,
+      tipo_tramite_id,
+      contribuyente_id,
+      inmueble_id
+  FROM dbo.Tramite
+  WHERE tramite_id = @tramite_id;
+END
+GO
+
+--Insertar  Tramites de Prueba
+USE MunicipalidadNicoya;
+GO
+
+EXEC dbo.sp_tramite_insertar 
+    @fecha_ingreso = '2025-09-01',
+    @fecha_resolucion = '2025-09-10',
+    @observaciones = 'Solicitud de permiso de construcciÃ³n para vivienda unifamiliar.',
+    @tipo_tramite_id = 1,          -- Permiso de ConstrucciÃ³n
+    @contribuyente_id = 1,         -- Juan PÃ©rez GÃ³mez
+    @inmueble_id = 1,
+    @estado_actual = 'En Proceso';
+GO
+
+EXEC dbo.sp_tramite_insertar 
+    @fecha_ingreso = '2025-08-05',
+    @fecha_resolucion = '2025-08-20',
+    @observaciones = 'TrÃ¡mite de alineamiento de lote.',
+    @tipo_tramite_id = 5,          -- Alineamiento de Propiedad
+    @contribuyente_id = 1,
+    @inmueble_id = 1,
+    @estado_actual = 'Aprobado';
+GO
+
+EXEC dbo.sp_Tramite_Listar;
+GO
+
+--Bucar por Tramite por ID
+USE MunicipalidadNicoya;
+GO
+
+EXEC dbo.sp_tramite_consultar_por_id @tramite_id = 1;
+GO
