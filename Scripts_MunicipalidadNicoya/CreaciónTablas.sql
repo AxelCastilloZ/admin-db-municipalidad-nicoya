@@ -115,6 +115,20 @@ CREATE TABLE Usuario (
 GO
 
 -- ============================================
+-- TABLA: Tipo Tramite
+-- ============================================
+
+CREATE TABLE Tipo_Tramite
+(
+    tipo_tramite_id INT IDENTITY(1,1) NOT NULL,
+    nombre_tipo     VARCHAR(50) NOT NULL,
+
+    -- PRIMARY KEY 
+    CONSTRAINT PK_TipoTramite PRIMARY KEY (tipo_tramite_id),
+)
+GO
+
+-- ============================================
 -- TABLA: Tramite
 -- ============================================
 

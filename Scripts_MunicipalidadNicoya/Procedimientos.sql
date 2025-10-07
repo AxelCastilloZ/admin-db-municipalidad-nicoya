@@ -753,6 +753,197 @@ EXEC sp_Usuario_Registrar
     select * from Usuario
 
 -----------------------
+--Tipo_Tramite 
+-----------------------
+/* =========================================================
+   SP: Insertar Tipo_Tramite
+========================================================= */
+CREATE PROCEDURE sp_TipoTramite_Insertar
+  @nombre_tipo VARCHAR(50)
+AS
+BEGIN
+  SET NOCOUNT ON;
+
+  BEGIN TRY
+    -- Validar obligatorio
+    IF @nombre_tipo IS NULL OR LTRIM(RTRIM(@nombre_tipo)) = ''
+    BEGIN
+      RAISERROR('El nombre del tipo de trámite es obligatorio', 16, 1);
+      RETURN;
+    END
+
+    -- Validar duplicado
+    IF EXISTS (SELECT 1 FROM Tipo_Tramite WHERE nombre_tipo = @nombre_tipo)
+    BEGIN
+      RAISERROR('El nombre de tipo de trámite ya está registrado', 16, 1);
+      RETURN;
+    END
+
+    INSERT INTO Tipo_Tramite (nombre_tipo)
+    VALUES (@nombre_tipo);
+
+    SELECT SCOPE_IDENTITY() AS tipo_tramite_id;
+  END TRY
+  BEGIN CATCH
+    DECLARE @ErrorMessage NVARCHAR(4000) = ERROR_MESSAGE();
+    RAISERROR(@ErrorMessage, 16, 1);
+  END CATCH
+END;
+GO
+
+/* =========================================================
+   SP: Consultar Tipo_Tramite por ID
+========================================================= */
+CREATE PROCEDURE sp_TipoTramite_ConsultarPorID
+  @tipo_tramite_id INT
+AS
+BEGIN
+  SET NOCOUNT ON;
+
+  SELECT
+    tipo_tramite_id,
+    nombre_tipo
+  FROM Tipo_Tramite
+  WHERE tipo_tramite_id = @tipo_tramite_id;
+END;
+GO
+
+/* =========================================================
+   SP: Listar Tipos_Tramite (con filtro opcional por nombre)
+   - Si @nombre es NULL o vacío, lista todo
+   - Si trae valor, aplica LIKE '%nombre%'
+========================================================= */
+CREATE PROCEDURE sp_TipoTramite_Listar
+  @nombre VARCHAR(50) = NULL
+AS
+BEGIN
+  SET NOCOUNT ON;
+
+  SELECT
+    tipo_tramite_id,
+    nombre_tipo
+  FROM Tipo_Tramite
+  WHERE (@nombre IS NULL OR LTRIM(RTRIM(@nombre)) = '')
+        OR (nombre_tipo LIKE '%' + @nombre + '%')
+  ORDER BY nombre_tipo;
+END;
+GO
+
+/* =========================================================
+   SP: Actualizar Tipo_Tramite
+========================================================= */
+CREATE PROCEDURE sp_TipoTramite_Actualizar
+  @tipo_tramite_id INT,
+  @nombre_tipo VARCHAR(50)
+AS
+BEGIN
+  SET NOCOUNT ON;
+
+  BEGIN TRY
+    -- Existe el ID
+    IF NOT EXISTS (SELECT 1 FROM Tipo_Tramite WHERE tipo_tramite_id = @tipo_tramite_id)
+    BEGIN
+      RAISERROR('El tipo de trámite no existe', 16, 1);
+      RETURN;
+    END
+
+    -- Validar nombre
+    IF @nombre_tipo IS NULL OR LTRIM(RTRIM(@nombre_tipo)) = ''
+    BEGIN
+      RAISERROR('El nombre del tipo de trámite es obligatorio', 16, 1);
+      RETURN;
+    END
+
+    -- Duplicados (excluyendo el mismo ID)
+    IF EXISTS (
+      SELECT 1
+      FROM Tipo_Tramite
+      WHERE nombre_tipo = @nombre_tipo
+        AND tipo_tramite_id <> @tipo_tramite_id
+    )
+    BEGIN
+      RAISERROR('El nombre ya está registrado por otro tipo de trámite', 16, 1);
+      RETURN;
+    END
+
+    UPDATE Tipo_Tramite
+    SET nombre_tipo = @nombre_tipo
+    WHERE tipo_tramite_id = @tipo_tramite_id;
+
+    SELECT 1 AS resultado; -- éxito
+  END TRY
+  BEGIN CATCH
+    DECLARE @ErrorMessage NVARCHAR(4000) = ERROR_MESSAGE();
+    RAISERROR(@ErrorMessage, 16, 1);
+  END CATCH
+END;
+GO
+
+/* =========================================================
+   SP: Eliminar Tipo_Tramite
+   - Evita eliminar si está referenciado por Tramite
+========================================================= */
+CREATE PROCEDURE sp_TipoTramite_Eliminar
+  @tipo_tramite_id INT
+AS
+BEGIN
+  SET NOCOUNT ON;
+
+  BEGIN TRY
+    -- Existe el ID
+    IF NOT EXISTS (SELECT 1 FROM Tipo_Tramite WHERE tipo_tramite_id = @tipo_tramite_id)
+    BEGIN
+      RAISERROR('El tipo de trámite no existe', 16, 1);
+      RETURN;
+    END
+
+    -- Validar dependencias (ajusta nombre de tabla/columna si difiere)
+    IF OBJECT_ID('dbo.Tramite','U') IS NOT NULL
+       AND EXISTS (SELECT 1 FROM dbo.Tramite WHERE tipo_tramite_id = @tipo_tramite_id)
+    BEGIN
+      RAISERROR('No se puede eliminar: existen trámites asociados a este tipo', 16, 1);
+      RETURN;
+    END
+
+    DELETE FROM Tipo_Tramite
+    WHERE tipo_tramite_id = @tipo_tramite_id;
+
+    SELECT 1 AS resultado; -- éxito
+  END TRY
+  BEGIN CATCH
+    DECLARE @ErrorMessage NVARCHAR(4000) = ERROR_MESSAGE();
+    RAISERROR(@ErrorMessage, 16, 1);
+  END CATCH
+END;
+GO
+
+--Ejemplos de uso 
+use MunicipalidadNicoya
+go
+-- Insertar
+EXEC sp_TipoTramite_Insertar @nombre_tipo = 'Uso de Suelo';
+select * from Tipo_Tramite
+go
+
+-- Listar todos
+EXEC sp_TipoTramite_Listar;
+
+-- Listar filtrando por nombre
+EXEC sp_TipoTramite_Listar @nombre = 'Patente';
+
+-- Consultar por ID
+EXEC sp_TipoTramite_ConsultarPorID @tipo_tramite_id = 1;
+
+-- Actualizar
+EXEC sp_TipoTramite_Actualizar
+  @tipo_tramite_id = 1,
+  @nombre_tipo = 'Patente Municipal';
+
+-- Eliminar
+EXEC sp_TipoTramite_Eliminar @tipo_tramite_id = 1;
+
+
+-----------------------
 --TRAMITES
 -----------------------
 -- SP: Insertar Tramite
