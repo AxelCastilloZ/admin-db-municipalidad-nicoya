@@ -947,23 +947,32 @@ EXEC sp_TipoTramite_Eliminar @tipo_tramite_id = 1;
 --TRAMITES
 -----------------------
 -- SP: Insertar Tramite
+-- SP: Insertar Tramite
+Use MunicipalidadNicoya
+go
 CREATE PROCEDURE dbo.sp_tramite_insertar
     @fecha_ingreso DATE,
-    @fecha_resolucion DATE,                -- NOT NULL en tu tabla; valida >= ingreso
-    @observaciones VARCHAR(255),
+    @fecha_resolucion DATE = NULL,
+    @observaciones VARCHAR(255) = NULL,
     @tipo_tramite_id INT,
     @contribuyente_id INT,
     @inmueble_id INT,
-    @estado_actual VARCHAR(20) = 'En Proceso'  -- usa tu DEFAULT/CK
+    @estado_actual VARCHAR(20) = 'En Proceso'
 AS
 BEGIN
     SET NOCOUNT ON;
 
     IF @estado_actual NOT IN ('En Proceso','Aprobado','Rechazado','Finalizado')
-    BEGIN RAISERROR('Estado inválido.',16,1); RETURN; END
+    BEGIN 
+        RAISERROR('Estado inválido.',16,1);
+        RETURN;
+    END
 
-    IF @fecha_resolucion < @fecha_ingreso
-    BEGIN RAISERROR('fecha_resolucion debe ser >= fecha_ingreso.',16,1); RETURN; END
+    IF @fecha_resolucion IS NOT NULL AND @fecha_resolucion < @fecha_ingreso
+    BEGIN 
+        RAISERROR('fecha_resolucion debe ser >= fecha_ingreso.',16,1);
+        RETURN;
+    END
 
     IF NOT EXISTS(SELECT 1 FROM dbo.Tipo_Tramite WHERE tipo_tramite_id=@tipo_tramite_id)
     BEGIN RAISERROR('tipo_tramite_id no existe.',16,1); RETURN; END
@@ -974,10 +983,24 @@ BEGIN
     IF NOT EXISTS(SELECT 1 FROM dbo.Inmueble WHERE inmueble_id=@inmueble_id)
     BEGIN RAISERROR('inmueble_id no existe.',16,1); RETURN; END
 
-    INSERT INTO dbo.Tramite(fecha_ingreso, fecha_resolucion, observaciones, estado_actual,
-                             tipo_tramite_id, contribuyente_id, inmueble_id)
-    VALUES (@fecha_ingreso, @fecha_resolucion, @observaciones, @estado_actual,
-            @tipo_tramite_id, @contribuyente_id, @inmueble_id);
+    INSERT INTO dbo.Tramite (
+        fecha_ingreso, 
+        fecha_resolucion, 
+        observaciones, 
+        estado_actual,
+        tipo_tramite_id, 
+        contribuyente_id, 
+        inmueble_id
+    )
+    VALUES (
+        @fecha_ingreso, 
+        @fecha_resolucion, 
+        @observaciones, 
+        @estado_actual,
+        @tipo_tramite_id, 
+        @contribuyente_id, 
+        @inmueble_id
+    );
 
     SELECT SCOPE_IDENTITY() AS tramite_id;
 END
