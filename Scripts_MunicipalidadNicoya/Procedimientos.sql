@@ -185,6 +185,8 @@ BEGIN
 END;
 GO
 
+
+
 -- Insertar un contribuyente de prueba
 EXEC sp_Contribuyente_Insertar 
     @cedula = '123456789',
@@ -200,6 +202,260 @@ EXEC sp_Contribuyente_Listar;
 -- Consultar por ID
 EXEC sp_Contribuyente_ConsultarPorID @contribuyente_id = 1;
 
+
+----Fisico
+IF OBJECT_ID('sp_Contribuyente_InsertarFisico', 'P') IS NOT NULL
+    DROP PROCEDURE sp_Contribuyente_InsertarFisico;
+GO
+
+CREATE PROCEDURE sp_Contribuyente_InsertarFisico
+    @cedula VARCHAR(20),
+    @nombre VARCHAR(50),
+    @apellido1 VARCHAR(50),
+    @apellido2 VARCHAR(50),
+    @telefono VARCHAR(20) = NULL,
+    @email VARCHAR(100) = NULL,
+    @direccion VARCHAR(255) = NULL
+AS
+BEGIN
+    SET NOCOUNT ON;
+    
+    DECLARE @contribuyente_id INT;
+    DECLARE @ErrorMessage NVARCHAR(4000);
+    
+    BEGIN TRY
+        -- Validar que la cédula no exista
+        IF EXISTS (SELECT 1 FROM Contribuyente_fisico WHERE cedula = @cedula)
+        BEGIN
+            RAISERROR('La cédula ya está registrada', 16, 1);
+            RETURN;
+        END
+        
+        BEGIN TRANSACTION;
+        
+        -- Insertar en tabla padre Contribuyente
+        INSERT INTO Contribuyente (tipo_contribuyente, telefono, email, direccion)
+        VALUES ('Física', @telefono, @email, @direccion);
+        
+        -- Obtener el ID generado
+        SET @contribuyente_id = SCOPE_IDENTITY();
+        
+        -- Insertar en tabla hija Contribuyente_fisico
+        INSERT INTO Contribuyente_fisico (contribuyente_id, cedula, nombre, apellido1, apellido2)
+        VALUES (@contribuyente_id, @cedula, @nombre, @apellido1, @apellido2);
+        
+        COMMIT TRANSACTION;
+        
+        -- Retornar el ID generado
+        SELECT @contribuyente_id AS contribuyente_id;
+        
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+        
+        SET @ErrorMessage = ERROR_MESSAGE();
+        RAISERROR(@ErrorMessage, 16, 1);
+        RETURN;
+    END CATCH
+END;
+GO
+
+
+--Juridico
+IF OBJECT_ID('sp_Contribuyente_InsertarJuridico', 'P') IS NOT NULL
+    DROP PROCEDURE sp_Contribuyente_InsertarJuridico;
+GO
+
+CREATE PROCEDURE sp_Contribuyente_InsertarJuridico
+    @cedula_juridica VARCHAR(50),
+    @nombre_empresa VARCHAR(50),
+    @representante_legal_id INT,
+    @telefono VARCHAR(20) = NULL,
+    @email VARCHAR(100) = NULL,
+    @direccion VARCHAR(255) = NULL
+AS
+BEGIN
+    SET NOCOUNT ON;
+    
+    DECLARE @contribuyente_id INT;
+    DECLARE @ErrorMessage NVARCHAR(4000);
+    
+    BEGIN TRY
+        -- Validar que la cédula jurídica no exista
+        IF EXISTS (SELECT 1 FROM Contribuyente_juridico WHERE cedula_juridica = @cedula_juridica)
+        BEGIN
+            RAISERROR('La cédula jurídica ya está registrada', 16, 1);
+            RETURN;
+        END
+        
+        -- Validar que el representante legal exista
+        IF NOT EXISTS (SELECT 1 FROM Contribuyente_fisico WHERE contribuyentes_fisicos_id = @representante_legal_id)
+        BEGIN
+            RAISERROR('El representante legal no existe', 16, 1);
+            RETURN;
+        END
+        
+        BEGIN TRANSACTION;
+        
+        -- Insertar en tabla padre Contribuyente
+        INSERT INTO Contribuyente (tipo_contribuyente, telefono, email, direccion)
+        VALUES ('Jurídica', @telefono, @email, @direccion);
+        
+        -- Obtener el ID generado
+        SET @contribuyente_id = SCOPE_IDENTITY();
+        
+        -- Insertar en tabla hija Contribuyente_juridico
+        INSERT INTO Contribuyente_juridico (contribuyente_id, cedula_juridica, nombre_empresa, representante_legal_id)
+        VALUES (@contribuyente_id, @cedula_juridica, @nombre_empresa, @representante_legal_id);
+        
+        COMMIT TRANSACTION;
+        
+        -- Retornar el ID generado
+        SELECT @contribuyente_id AS contribuyente_id;
+        
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+        
+        SET @ErrorMessage = ERROR_MESSAGE();
+        RAISERROR(@ErrorMessage, 16, 1);
+        RETURN;
+    END CATCH
+END;
+GO
+
+
+--Contribuyente Completo
+IF OBJECT_ID('sp_Contribuyente_ConsultarCompleto', 'P') IS NOT NULL
+    DROP PROCEDURE sp_Contribuyente_ConsultarCompleto;
+GO
+
+CREATE PROCEDURE sp_Contribuyente_ConsultarCompleto
+    @contribuyente_id INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    
+    SELECT 
+        c.contribuyente_id,
+        c.tipo_contribuyente,
+        c.telefono,
+        c.email,
+        c.direccion,
+        -- Datos de persona física
+        cf.contribuyentes_fisicos_id,
+        cf.cedula,
+        cf.nombre,
+        cf.apellido1,
+        cf.apellido2,
+        -- Datos de persona jurídica
+        cj.contribuyentes_fisicos_id AS contribuyente_juridico_id,
+        cj.cedula_juridica,
+        cj.nombre_empresa,
+        cj.representante_legal_id
+    FROM Contribuyente c
+    LEFT JOIN Contribuyente_fisico cf ON c.contribuyente_id = cf.contribuyente_id
+    LEFT JOIN Contribuyente_juridico cj ON c.contribuyente_id = cj.contribuyente_id
+    WHERE c.contribuyente_id = @contribuyente_id;
+END;
+GO
+
+--Listar todos los contribuyentes
+IF OBJECT_ID('sp_Contribuyente_ListarTodos', 'P') IS NOT NULL
+    DROP PROCEDURE sp_Contribuyente_ListarTodos;
+GO
+
+CREATE PROCEDURE sp_Contribuyente_ListarTodos
+AS
+BEGIN
+    SET NOCOUNT ON;
+    
+    SELECT 
+        c.contribuyente_id,
+        c.tipo_contribuyente,
+        c.telefono,
+        c.email,
+        c.direccion,
+        -- Datos de persona física
+        cf.cedula,
+        cf.nombre,
+        cf.apellido1,
+        cf.apellido2,
+        -- Datos de persona jurídica
+        cj.cedula_juridica,
+        cj.nombre_empresa,
+        cj.representante_legal_id
+    FROM Contribuyente c
+    LEFT JOIN Contribuyente_fisico cf ON c.contribuyente_id = cf.contribuyente_id
+    LEFT JOIN Contribuyente_juridico cj ON c.contribuyente_id = cj.contribuyente_id
+    ORDER BY c.contribuyente_id DESC;
+END;
+GO
+
+-- =============================================
+-- SP: Eliminar Contribuyente
+-- =============================================
+IF OBJECT_ID('sp_Contribuyente_Eliminar', 'P') IS NOT NULL
+    DROP PROCEDURE sp_Contribuyente_Eliminar;
+GO
+
+CREATE PROCEDURE sp_Contribuyente_Eliminar
+    @contribuyente_id INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    
+    DECLARE @ErrorMessage NVARCHAR(4000);
+    
+    BEGIN TRY
+        -- Validar que el contribuyente existe
+        IF NOT EXISTS (SELECT 1 FROM Contribuyente WHERE contribuyente_id = @contribuyente_id)
+        BEGIN
+            RAISERROR('El contribuyente no existe', 16, 1);
+            RETURN;
+        END
+        
+        BEGIN TRANSACTION;
+        
+        -- Las tablas hijas se eliminan automáticamente por CASCADE
+        DELETE FROM Contribuyente WHERE contribuyente_id = @contribuyente_id;
+        
+        COMMIT TRANSACTION;
+        
+        SELECT 1 AS resultado;
+        
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+        
+        SET @ErrorMessage = ERROR_MESSAGE();
+        RAISERROR(@ErrorMessage, 16, 1);
+        RETURN;
+    END CATCH
+END;
+GO
+
+-- Probar inserción directa
+EXEC sp_Contribuyente_InsertarFisico
+    @cedula = '504570381',
+    @nombre = 'Greilyn',
+    @apellido1 = 'Esquivel',
+    @apellido2 = 'Salazar',
+    @telefono = '83778589',
+    @email = 'greilynesquivel@gmail.com',
+    @direccion = 'Hojancha, Pilangostra';
+GO
+
+-- Listar todos
+EXEC sp_Contribuyente_ListarTodos;
+GO
+
+-- Consultar por ID
+EXEC sp_Contribuyente_ConsultarCompleto @contribuyente_id = 1;
+GO
 
 
 
