@@ -809,25 +809,47 @@ END;
 GO
 
 /* =========================================================
-   SP: Listar Tipos_Tramite (con filtro opcional por nombre)
-   - Si @nombre es NULL o vacío, lista todo
-   - Si trae valor, aplica LIKE '%nombre%'
+   SP: Listar Tipos_Tramite 
 ========================================================= */
+Use MunicipalidadNicoya
+go
 CREATE PROCEDURE sp_TipoTramite_Listar
-  @nombre VARCHAR(50) = NULL
 AS
 BEGIN
   SET NOCOUNT ON;
 
-  SELECT
-    tipo_tramite_id,
-    nombre_tipo
-  FROM Tipo_Tramite
-  WHERE (@nombre IS NULL OR LTRIM(RTRIM(@nombre)) = '')
-        OR (nombre_tipo LIKE '%' + @nombre + '%')
+  SELECT tipo_tramite_id, nombre_tipo
+  FROM dbo.Tipo_Tramite
   ORDER BY nombre_tipo;
 END;
 GO
+
+/* =========================================================
+    SP: Buscar Tipos_Tramite por nombre (LIKE '%@nombre%') 
+========================================================= */
+
+CREATE PROCEDURE sp_TipoTramite_BuscarPorNombre
+  @nombre VARCHAR(50)
+AS
+BEGIN
+  SET NOCOUNT ON;
+
+  IF @nombre IS NULL OR LTRIM(RTRIM(@nombre)) = ''
+  BEGIN
+    -- si viene vacío, devuelve todo (por comodidad)
+    SELECT tipo_tramite_id, nombre_tipo
+    FROM dbo.Tipo_Tramite
+    ORDER BY nombre_tipo;
+    RETURN;
+  END
+
+  SELECT tipo_tramite_id, nombre_tipo
+  FROM dbo.Tipo_Tramite
+  WHERE nombre_tipo LIKE '%' + @nombre + '%'
+  ORDER BY nombre_tipo;
+END;
+GO
+
 
 /* =========================================================
    SP: Actualizar Tipo_Tramite
@@ -883,21 +905,22 @@ GO
    SP: Eliminar Tipo_Tramite
    - Evita eliminar si está referenciado por Tramite
 ========================================================= */
+use MunicipalidadNicoya
+go
 CREATE PROCEDURE sp_TipoTramite_Eliminar
   @tipo_tramite_id INT
 AS
 BEGIN
-  SET NOCOUNT ON;
+  -- Importante: NOCOUNT OFF para que ExecuteNonQuery() retorne filas afectadas
+  SET NOCOUNT OFF;
 
   BEGIN TRY
-    -- Existe el ID
-    IF NOT EXISTS (SELECT 1 FROM Tipo_Tramite WHERE tipo_tramite_id = @tipo_tramite_id)
+    IF NOT EXISTS (SELECT 1 FROM dbo.Tipo_Tramite WHERE tipo_tramite_id = @tipo_tramite_id)
     BEGIN
       RAISERROR('El tipo de trámite no existe', 16, 1);
       RETURN;
     END
 
-    -- Validar dependencias (ajusta nombre de tabla/columna si difiere)
     IF OBJECT_ID('dbo.Tramite','U') IS NOT NULL
        AND EXISTS (SELECT 1 FROM dbo.Tramite WHERE tipo_tramite_id = @tipo_tramite_id)
     BEGIN
@@ -905,10 +928,10 @@ BEGIN
       RETURN;
     END
 
-    DELETE FROM Tipo_Tramite
+    DELETE FROM dbo.Tipo_Tramite
     WHERE tipo_tramite_id = @tipo_tramite_id;
 
-    SELECT 1 AS resultado; -- éxito
+  
   END TRY
   BEGIN CATCH
     DECLARE @ErrorMessage NVARCHAR(4000) = ERROR_MESSAGE();
@@ -928,8 +951,8 @@ go
 -- Listar todos
 EXEC sp_TipoTramite_Listar;
 
--- Listar filtrando por nombre
-EXEC sp_TipoTramite_Listar @nombre = 'Patente';
+-- Buscar por nombre
+EXEC sp_TipoTramite_BuscarPorNombre @nombre = 'Permiso';
 
 -- Consultar por ID
 EXEC sp_TipoTramite_ConsultarPorID @tipo_tramite_id = 1;
