@@ -136,8 +136,8 @@ CREATE TABLE Tramite
 (
   tramite_id         INT IDENTITY(1,1) NOT NULL,
   fecha_ingreso      DATE NOT NULL,
-  fecha_resolucion   DATE NOT NULL,
-  observaciones      VARCHAR(255) NOT NULL,
+  fecha_resolucion   DATE NULL,
+  observaciones      VARCHAR(255) NULL,
   estado_actual      VARCHAR(20) NOT NULL,
   tipo_tramite_id    INT NOT NULL,
   contribuyente_id   INT NOT NULL,
