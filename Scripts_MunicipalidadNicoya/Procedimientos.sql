@@ -457,9 +457,432 @@ GO
 EXEC sp_Contribuyente_ConsultarCompleto @contribuyente_id = 1;
 GO
 
+-----------------------
+--Inmueble
+-----------------------
+USE MunicipalidadNicoya;
+GO
 
+-- =============================================
+-- SP: Listar Tipos de Uso de Inmueble
+-- =============================================
+IF OBJECT_ID('sp_TipoUsoInmueble_Listar', 'P') IS NOT NULL
+    DROP PROCEDURE sp_TipoUsoInmueble_Listar;
+GO
 
+CREATE PROCEDURE sp_TipoUsoInmueble_Listar
+AS
+BEGIN
+    SET NOCOUNT ON;
+    
+    SELECT 
+        tipo_uso_inmueble_id,
+        nombre_uso,
+        descripcion
+    FROM TipoUsoInmueble
+    ORDER BY nombre_uso;
+END;
+GO
 
+-- =============================================
+-- SP: Insertar Inmueble
+-- =============================================
+IF OBJECT_ID('sp_Inmueble_Insertar', 'P') IS NOT NULL
+    DROP PROCEDURE sp_Inmueble_Insertar;
+GO
+
+CREATE PROCEDURE sp_Inmueble_Insertar
+    @direccion_exacta VARCHAR(255),
+    @area_terreno DECIMAL(10,2),
+    @valor_fiscal DECIMAL(18,2),
+    @tipo_uso_inmueble_id INT,
+    @estado_ocupacional VARCHAR(50) = NULL
+AS
+BEGIN
+    SET NOCOUNT ON;
+    
+    DECLARE @inmueble_id INT;
+    
+    BEGIN TRY
+        IF @area_terreno <= 0
+        BEGIN
+            THROW 50001, 'El área del terreno debe ser mayor a 0', 1;
+        END
+        
+        IF @valor_fiscal < 0
+        BEGIN
+            THROW 50002, 'El valor fiscal no puede ser negativo', 1;
+        END
+        
+        IF NOT EXISTS (SELECT 1 FROM TipoUsoInmueble WHERE tipo_uso_inmueble_id = @tipo_uso_inmueble_id)
+        BEGIN
+            THROW 50003, 'El tipo de uso de inmueble no existe', 1;
+        END
+        
+        BEGIN TRANSACTION;
+        
+        INSERT INTO Inmueble (direccion_exacta, area_terreno, valor_fiscal, tipo_uso_inmueble_id, estado_ocupacional)
+        VALUES (@direccion_exacta, @area_terreno, @valor_fiscal, @tipo_uso_inmueble_id, @estado_ocupacional);
+        
+        SET @inmueble_id = SCOPE_IDENTITY();
+        
+        COMMIT TRANSACTION;
+        
+        
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH
+END;
+GO
+
+-- =============================================
+-- SP: Asociar Contribuyente a Inmueble
+-- =============================================
+IF OBJECT_ID('sp_Inmueble_AsociarContribuyente', 'P') IS NOT NULL
+    DROP PROCEDURE sp_Inmueble_AsociarContribuyente;
+GO
+
+CREATE PROCEDURE sp_Inmueble_AsociarContribuyente
+    @contribuyente_id INT,
+    @inmueble_id INT,
+    @porcentaje_propiedad DECIMAL(5,2) = 100.00
+AS
+BEGIN
+    SET NOCOUNT ON;
+    
+    BEGIN TRY
+        IF NOT EXISTS (SELECT 1 FROM Contribuyente WHERE contribuyente_id = @contribuyente_id)
+        BEGIN
+            THROW 50001, 'El contribuyente no existe', 1;
+        END
+        
+        IF NOT EXISTS (SELECT 1 FROM Inmueble WHERE inmueble_id = @inmueble_id)
+        BEGIN
+            THROW 50002, 'El inmueble no existe', 1;
+        END
+        
+        IF EXISTS (SELECT 1 FROM Contribuyente_Inmueble 
+                   WHERE contribuyente_id = @contribuyente_id 
+                   AND inmueble_id = @inmueble_id)
+        BEGIN
+            THROW 50003, 'Esta asociación ya existe', 1;
+        END
+        
+        IF @porcentaje_propiedad <= 0 OR @porcentaje_propiedad > 100
+        BEGIN
+            THROW 50004, 'El porcentaje de propiedad debe estar entre 0 y 100', 1;
+        END
+        
+        BEGIN TRANSACTION;
+        
+        INSERT INTO Contribuyente_Inmueble (contribuyente_id, inmueble_id, porcentaje_propiedad)
+        VALUES (@contribuyente_id, @inmueble_id, @porcentaje_propiedad);
+        
+        COMMIT TRANSACTION;
+        
+        
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH
+END;
+GO
+
+-- =============================================
+-- SP: Listar Todos los Inmuebles
+-- =============================================
+IF OBJECT_ID('sp_Inmueble_ListarTodos', 'P') IS NOT NULL
+    DROP PROCEDURE sp_Inmueble_ListarTodos;
+GO
+
+CREATE PROCEDURE sp_Inmueble_ListarTodos
+AS
+BEGIN
+    SET NOCOUNT ON;
+    
+    SELECT 
+        i.inmueble_id,
+        i.direccion_exacta,
+        i.area_terreno,
+        i.valor_fiscal,
+        i.estado_ocupacional,
+        i.tipo_uso_inmueble_id,
+        t.nombre_uso AS tipo_uso_nombre,
+        t.descripcion AS tipo_uso_descripcion,
+        i.fecha_registro
+    FROM Inmueble i
+    INNER JOIN TipoUsoInmueble t ON i.tipo_uso_inmueble_id = t.tipo_uso_inmueble_id
+    ORDER BY i.inmueble_id DESC;
+END;
+GO
+
+-- =============================================
+-- SP: Consultar Inmueble por ID
+-- =============================================
+IF OBJECT_ID('sp_Inmueble_ConsultarPorID', 'P') IS NOT NULL
+    DROP PROCEDURE sp_Inmueble_ConsultarPorID;
+GO
+
+CREATE PROCEDURE sp_Inmueble_ConsultarPorID
+    @inmueble_id INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    
+    -- Datos del inmueble
+    SELECT 
+        i.inmueble_id,
+        i.direccion_exacta,
+        i.area_terreno,
+        i.valor_fiscal,
+        i.estado_ocupacional,
+        i.tipo_uso_inmueble_id,
+        t.nombre_uso AS tipo_uso_nombre,
+        t.descripcion AS tipo_uso_descripcion,
+        i.fecha_registro
+    FROM Inmueble i
+    INNER JOIN TipoUsoInmueble t ON i.tipo_uso_inmueble_id = t.tipo_uso_inmueble_id
+    WHERE i.inmueble_id = @inmueble_id;
+    
+    -- Propietarios del inmueble
+    SELECT 
+        ci.contribuyente_inmueble_id,
+        ci.contribuyente_id,
+        ci.porcentaje_propiedad,
+        ci.fecha_registro AS fecha_asociacion,
+        c.tipo_contribuyente,
+        cf.nombre,
+        cf.apellido1,
+        cf.apellido2,
+        cf.cedula,
+        CONCAT(cf.nombre, ' ', cf.apellido1, ' ', cf.apellido2) AS nombre_completo,
+        cj.nombre_empresa,
+        cj.cedula_juridica
+    FROM Contribuyente_Inmueble ci
+    INNER JOIN Contribuyente c ON ci.contribuyente_id = c.contribuyente_id
+    LEFT JOIN Contribuyente_fisico cf ON c.contribuyente_id = cf.contribuyente_id
+    LEFT JOIN Contribuyente_juridico cj ON c.contribuyente_id = cj.contribuyente_id
+    WHERE ci.inmueble_id = @inmueble_id;
+END;
+GO
+
+-- =============================================
+-- SP: Inmuebles de un Contribuyente
+-- =============================================
+IF OBJECT_ID('sp_Inmueble_PorContribuyente', 'P') IS NOT NULL
+    DROP PROCEDURE sp_Inmueble_PorContribuyente;
+GO
+
+CREATE PROCEDURE sp_Inmueble_PorContribuyente
+    @contribuyente_id INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    
+    SELECT 
+        i.inmueble_id,
+        i.direccion_exacta,
+        i.area_terreno,
+        i.valor_fiscal,
+        i.estado_ocupacional,
+        i.tipo_uso_inmueble_id,
+        t.nombre_uso AS tipo_uso_nombre,
+        i.fecha_registro,
+        ci.porcentaje_propiedad,
+        ci.fecha_registro AS fecha_asociacion
+    FROM Inmueble i
+    INNER JOIN TipoUsoInmueble t ON i.tipo_uso_inmueble_id = t.tipo_uso_inmueble_id
+    INNER JOIN Contribuyente_Inmueble ci ON i.inmueble_id = ci.inmueble_id
+    WHERE ci.contribuyente_id = @contribuyente_id
+    ORDER BY i.inmueble_id DESC;
+END;
+GO
+
+-- =============================================
+-- SP: Actualizar Inmueble
+-- =============================================
+IF OBJECT_ID('sp_Inmueble_Actualizar', 'P') IS NOT NULL
+    DROP PROCEDURE sp_Inmueble_Actualizar;
+GO
+
+CREATE PROCEDURE sp_Inmueble_Actualizar
+    @inmueble_id INT,
+    @direccion_exacta VARCHAR(255),
+    @area_terreno DECIMAL(10,2),
+    @valor_fiscal DECIMAL(18,2),
+    @tipo_uso_inmueble_id INT,
+    @estado_ocupacional VARCHAR(50) = NULL
+AS
+BEGIN
+    SET NOCOUNT ON;
+    
+    BEGIN TRY
+        IF NOT EXISTS (SELECT 1 FROM Inmueble WHERE inmueble_id = @inmueble_id)
+        BEGIN
+            THROW 50001, 'El inmueble no existe', 1;
+        END
+        
+        IF @area_terreno <= 0
+        BEGIN
+            THROW 50002, 'El área del terreno debe ser mayor a 0', 1;
+        END
+        
+        IF @valor_fiscal < 0
+        BEGIN
+            THROW 50003, 'El valor fiscal no puede ser negativo', 1;
+        END
+        
+        IF NOT EXISTS (SELECT 1 FROM TipoUsoInmueble WHERE tipo_uso_inmueble_id = @tipo_uso_inmueble_id)
+        BEGIN
+            THROW 50004, 'El tipo de uso de inmueble no existe', 1;
+        END
+        
+        BEGIN TRANSACTION;
+        
+        UPDATE Inmueble
+        SET 
+            direccion_exacta = @direccion_exacta,
+            area_terreno = @area_terreno,
+            valor_fiscal = @valor_fiscal,
+            tipo_uso_inmueble_id = @tipo_uso_inmueble_id,
+            estado_ocupacional = @estado_ocupacional
+        WHERE inmueble_id = @inmueble_id;
+        
+        COMMIT TRANSACTION;
+        
+        
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH
+END;
+GO
+
+-- =============================================
+-- SP: Eliminar Inmueble
+-- =============================================
+IF OBJECT_ID('sp_Inmueble_Eliminar', 'P') IS NOT NULL
+    DROP PROCEDURE sp_Inmueble_Eliminar;
+GO
+
+CREATE PROCEDURE sp_Inmueble_Eliminar
+    @inmueble_id INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    
+    BEGIN TRY
+        IF NOT EXISTS (SELECT 1 FROM Inmueble WHERE inmueble_id = @inmueble_id)
+        BEGIN
+            THROW 50001, 'El inmueble no existe', 1;
+        END
+        
+        BEGIN TRANSACTION;
+        
+        DELETE FROM Inmueble WHERE inmueble_id = @inmueble_id;
+        
+        COMMIT TRANSACTION;
+       
+        
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH
+END;
+GO
+
+-- =============================================
+-- SP: Desasociar Contribuyente de Inmueble
+-- =============================================
+IF OBJECT_ID('sp_Inmueble_DesasociarContribuyente', 'P') IS NOT NULL
+    DROP PROCEDURE sp_Inmueble_DesasociarContribuyente;
+GO
+
+CREATE PROCEDURE sp_Inmueble_DesasociarContribuyente
+    @contribuyente_id INT,
+    @inmueble_id INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    
+    BEGIN TRY
+        IF NOT EXISTS (SELECT 1 FROM Contribuyente_Inmueble 
+                       WHERE contribuyente_id = @contribuyente_id 
+                       AND inmueble_id = @inmueble_id)
+        BEGIN
+            THROW 50001, 'La asociación no existe', 1;
+        END
+        
+        BEGIN TRANSACTION;
+        
+        DELETE FROM Contribuyente_Inmueble 
+        WHERE contribuyente_id = @contribuyente_id 
+        AND inmueble_id = @inmueble_id;
+        
+        COMMIT TRANSACTION;
+       
+        
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH
+END;
+GO
+
+PRINT '========================================';
+PRINT '✓ Stored Procedures de Inmuebles creados';
+PRINT '========================================';
+PRINT 'SPs creados:';
+PRINT '  - sp_TipoUsoInmueble_Listar';
+PRINT '  - sp_Inmueble_Insertar';
+PRINT '  - sp_Inmueble_AsociarContribuyente';
+PRINT '  - sp_Inmueble_ListarTodos';
+PRINT '  - sp_Inmueble_ConsultarPorID';
+PRINT '  - sp_Inmueble_PorContribuyente';
+PRINT '  - sp_Inmueble_Actualizar';
+PRINT '  - sp_Inmueble_Eliminar';
+PRINT '  - sp_Inmueble_DesasociarContribuyente';
+PRINT '========================================';
+GO
+
+-- 1. Listar tipos de uso
+EXEC sp_TipoUsoInmueble_Listar;
+GO
+
+-- 2. Insertar un inmueble
+EXEC sp_Inmueble_Insertar
+    @direccion_exacta = 'Nicoya Centro, 100m norte del parque',
+    @area_terreno = 250.50,
+    @valor_fiscal = 75000000.00,
+    @tipo_uso_inmueble_id = 1,
+    @estado_ocupacional = 'Ocupado';
+GO
+
+-- 3. Listar todos los inmuebles
+EXEC sp_Inmueble_ListarTodos;
+GO
+
+-- 4. Asociar un contribuyente al inmueble (usa IDs reales)
+EXEC sp_Inmueble_AsociarContribuyente
+    @contribuyente_id = 1,
+    @inmueble_id = 1,
+    @porcentaje_propiedad = 100.00;
+GO
+
+-- 5. Ver inmuebles de un contribuyente
+EXEC sp_Inmueble_PorContribuyente @contribuyente_id = 1;
+GO
 
 -----------------------
 --USUARIO
@@ -1202,4 +1625,25 @@ USE MunicipalidadNicoya;
 GO
 
 EXEC dbo.sp_tramite_consultar_por_id @tramite_id = 1;
+GO
+
+
+
+-- Verificar datos existentes
+SELECT 'Contribuyentes' AS Tabla, COUNT(*) AS Total FROM Contribuyente
+UNION ALL
+SELECT 'Inmuebles', COUNT(*) FROM Inmueble
+UNION ALL
+SELECT 'Tipos de Trámite', COUNT(*) FROM Tipo_Tramite;
+GO
+
+-- Ver los IDs disponibles
+SELECT TOP 5 contribuyente_id, tipo_contribuyente FROM Contribuyente;
+SELECT TOP 5 inmueble_id, direccion_exacta FROM Inmueble;
+SELECT TOP 5 tipo_tramite_id, nombre_tipo FROM Tipo_Tramite;
+GO
+
+SELECT name, create_date, modify_date
+FROM sys.procedures
+WHERE name = 'sp_tramite_insertar';
 GO
