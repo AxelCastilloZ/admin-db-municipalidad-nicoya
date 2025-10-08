@@ -1,0 +1,192 @@
+﻿-- =============================================
+-- MÓDULO: CONTRIBUYENTES E INMUEBLES
+-- Script: Creación de Tablas
+-- Descripción: Tablas de contribuyentes (físicos/jurídicos) e inmuebles
+-- =============================================
+
+USE MunicipalidadNicoya;
+GO
+
+IF OBJECT_ID('dbo.Contribuyente_Inmueble', 'U') IS NOT NULL
+    DROP TABLE dbo.Contribuyente_Inmueble;
+GO
+
+IF OBJECT_ID('dbo.Inmueble', 'U') IS NOT NULL
+    DROP TABLE dbo.Inmueble;
+GO
+
+IF OBJECT_ID('dbo.Contribuyente_juridico', 'U') IS NOT NULL
+    DROP TABLE dbo.Contribuyente_juridico;
+GO
+
+IF OBJECT_ID('dbo.Contribuyente_fisico', 'U') IS NOT NULL
+    DROP TABLE dbo.Contribuyente_fisico;
+GO
+
+IF OBJECT_ID('dbo.Contribuyente', 'U') IS NOT NULL
+    DROP TABLE dbo.Contribuyente;
+GO
+
+IF OBJECT_ID('dbo.TipoUsoInmueble', 'U') IS NOT NULL
+    DROP TABLE dbo.TipoUsoInmueble;
+GO
+
+-- =============================================
+-- TABLA: Contribuyente (Padre)
+-- =============================================
+CREATE TABLE dbo.Contribuyente
+(
+    contribuyente_id INT IDENTITY(1,1) NOT NULL,
+    tipo_contribuyente VARCHAR(20) NOT NULL,
+    telefono VARCHAR(20) NULL,
+    email VARCHAR(100) NULL,
+    direccion VARCHAR(255) NULL,
+    
+    CONSTRAINT PK_Contribuyente PRIMARY KEY (contribuyente_id),
+    CONSTRAINT CK_Contribuyente_Tipo CHECK (tipo_contribuyente IN ('Física', 'Jurídica')),
+    CONSTRAINT CK_Contribuyente_Email CHECK (email LIKE '%@%' OR email IS NULL)
+);
+GO
+
+PRINT '✓ Tabla Contribuyente creada';
+GO
+
+-- =============================================
+-- TABLA: Contribuyente_fisico (Hija)
+-- =============================================
+CREATE TABLE dbo.Contribuyente_fisico
+(
+    contribuyentes_fisicos_id INT IDENTITY(1,1) NOT NULL,
+    contribuyente_id INT NOT NULL,
+    cedula VARCHAR(20) NOT NULL,
+    nombre VARCHAR(50) NOT NULL,
+    apellido1 VARCHAR(50) NOT NULL,
+    apellido2 VARCHAR(50) NOT NULL,
+    
+    CONSTRAINT PK_Contribuyente_fisico PRIMARY KEY (contribuyentes_fisicos_id),
+    CONSTRAINT FK_Contribuyente_fisico_Contribuyente 
+        FOREIGN KEY (contribuyente_id) REFERENCES dbo.Contribuyente(contribuyente_id)
+        ON DELETE CASCADE,
+    CONSTRAINT UQ_Contribuyente_fisico_Cedula UNIQUE (cedula),
+    CONSTRAINT UQ_Contribuyente_fisico_Contribuyente UNIQUE (contribuyente_id)
+);
+GO
+
+PRINT '✓ Tabla Contribuyente_fisico creada';
+GO
+
+-- =============================================
+-- TABLA: Contribuyente_juridico (Hija)
+-- =============================================
+CREATE TABLE dbo.Contribuyente_juridico
+(
+    contribuyentes_fisicos_id INT IDENTITY(1,1) NOT NULL,
+    contribuyente_id INT NOT NULL,
+    cedula_juridica VARCHAR(50) NOT NULL,
+    nombre_empresa VARCHAR(50) NOT NULL,
+    representante_legal_id INT NOT NULL,
+    
+    CONSTRAINT PK_Contribuyente_juridico PRIMARY KEY (contribuyentes_fisicos_id),
+    CONSTRAINT FK_Contribuyente_juridico_Contribuyente 
+        FOREIGN KEY (contribuyente_id) REFERENCES dbo.Contribuyente(contribuyente_id)
+        ON DELETE CASCADE,
+    CONSTRAINT FK_Contribuyente_juridico_Representante 
+        FOREIGN KEY (representante_legal_id) REFERENCES dbo.Contribuyente_fisico(contribuyentes_fisicos_id),
+    CONSTRAINT UQ_Contribuyente_juridico_Cedula UNIQUE (cedula_juridica),
+    CONSTRAINT UQ_Contribuyente_juridico_Contribuyente UNIQUE (contribuyente_id)
+);
+GO
+
+PRINT '✓ Tabla Contribuyente_juridico creada';
+GO
+
+-- =============================================
+-- TABLA CATÁLOGO: TipoUsoInmueble
+-- =============================================
+CREATE TABLE dbo.TipoUsoInmueble
+(
+    tipo_uso_inmueble_id INT IDENTITY(1,1) NOT NULL,
+    nombre_uso VARCHAR(50) NOT NULL,
+    descripcion VARCHAR(300) NULL,
+    
+    CONSTRAINT PK_TipoUsoInmueble PRIMARY KEY (tipo_uso_inmueble_id),
+    CONSTRAINT UQ_TipoUsoInmueble_Nombre UNIQUE (nombre_uso)
+);
+GO
+
+-- Insertar tipos de uso comunes
+INSERT INTO TipoUsoInmueble (nombre_uso, descripcion) VALUES
+('Residencial', 'Vivienda familiar o multifamiliar'),
+('Comercial', 'Establecimientos comerciales, tiendas, oficinas'),
+('Industrial', 'Fábricas, bodegas, instalaciones industriales'),
+('Agrícola', 'Terrenos para cultivo o ganadería'),
+('Mixto', 'Uso residencial y comercial combinado'),
+('Baldío', 'Terreno sin construcción ni uso específico'),
+('Institucional', 'Escuelas, hospitales, iglesias, edificios públicos'),
+('Recreativo', 'Parques, centros deportivos, áreas verdes');
+GO
+
+PRINT '✓ Tabla TipoUsoInmueble creada con datos iniciales';
+GO
+
+-- =============================================
+-- TABLA: Inmueble
+-- =============================================
+CREATE TABLE dbo.Inmueble
+(
+    inmueble_id INT IDENTITY(1,1) NOT NULL,
+    direccion_exacta VARCHAR(255) NOT NULL,
+    area_terreno DECIMAL(10,2) NOT NULL,
+    valor_fiscal DECIMAL(18,2) NOT NULL,
+    estado_ocupacional VARCHAR(50) NULL,
+    tipo_uso_inmueble_id INT NOT NULL,
+    fecha_registro DATETIME NOT NULL DEFAULT GETDATE(),
+    
+    CONSTRAINT PK_Inmueble PRIMARY KEY (inmueble_id),
+    CONSTRAINT FK_Inmueble_TipoUsoInmueble 
+        FOREIGN KEY (tipo_uso_inmueble_id) 
+        REFERENCES dbo.TipoUsoInmueble(tipo_uso_inmueble_id),
+    CONSTRAINT CK_Inmueble_AreaTerreno CHECK (area_terreno > 0),
+    CONSTRAINT CK_Inmueble_ValorFiscal CHECK (valor_fiscal >= 0)
+);
+GO
+
+PRINT '✓ Tabla Inmueble creada';
+GO
+
+-- =============================================
+-- TABLA RELACIÓN N:M: Contribuyente_Inmueble
+-- =============================================
+CREATE TABLE dbo.Contribuyente_Inmueble
+(
+    contribuyente_inmueble_id INT IDENTITY(1,1) NOT NULL,
+    contribuyente_id INT NOT NULL,
+    inmueble_id INT NOT NULL,
+    porcentaje_propiedad DECIMAL(5,2) NOT NULL DEFAULT 100.00,
+    fecha_registro DATETIME NOT NULL DEFAULT GETDATE(),
+    
+    CONSTRAINT PK_Contribuyente_Inmueble PRIMARY KEY (contribuyente_inmueble_id),
+    CONSTRAINT FK_Contribuyente_Inmueble_Contribuyente 
+        FOREIGN KEY (contribuyente_id) 
+        REFERENCES dbo.Contribuyente(contribuyente_id)
+        ON DELETE CASCADE,
+    CONSTRAINT FK_Contribuyente_Inmueble_Inmueble 
+        FOREIGN KEY (inmueble_id) 
+        REFERENCES dbo.Inmueble(inmueble_id)
+        ON DELETE CASCADE,
+    CONSTRAINT CK_Contribuyente_Inmueble_Porcentaje 
+        CHECK (porcentaje_propiedad > 0 AND porcentaje_propiedad <= 100),
+    CONSTRAINT UQ_Contribuyente_Inmueble 
+        UNIQUE (contribuyente_id, inmueble_id)
+);
+GO
+
+PRINT '✓ Tabla Contribuyente_Inmueble creada';
+GO
+
+PRINT '';
+PRINT '========================================';
+PRINT '✓ MÓDULO CONTRIBUYENTES E INMUEBLES';
+PRINT '  Todas las tablas creadas exitosamente';
+PRINT '========================================';
+GO
