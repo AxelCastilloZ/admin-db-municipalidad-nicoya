@@ -633,3 +633,823 @@ PRINT '  - sp_Inmueble_Eliminar';
 PRINT '  - sp_Inmueble_DesasociarContribuyente';
 PRINT '========================================';
 GO
+
+
+
+
+
+
+-- SP: Insertar Catastro
+
+IF OBJECT_ID('sp_Catastro_Insertar', 'P') IS NOT NULL
+    DROP PROCEDURE sp_Catastro_Insertar;
+GO
+
+CREATE PROCEDURE sp_Catastro_Insertar
+    @numero_plano_catastral VARCHAR(50),
+    @area_catastral VARCHAR(100) = NULL,
+    @fecha_inscripcion DATE,
+    @estado VARCHAR(20) = 'Activo',
+    @inmueble_id INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    
+    DECLARE @catastro_id INT;
+    DECLARE @existe_inmueble INT;
+    
+    BEGIN TRY
+        -- Debug: Verificar base de datos actual
+        DECLARE @dbName NVARCHAR(128) = DB_NAME();
+        PRINT 'Base de datos actual: ' + @dbName;
+        
+        -- Verificar si el inmueble existe (con contador)
+        SELECT @existe_inmueble = COUNT(*) 
+        FROM dbo.Inmueble 
+        WHERE inmueble_id = @inmueble_id;
+        
+        PRINT 'Inmuebles encontrados con ID ' + CAST(@inmueble_id AS VARCHAR(10)) + ': ' + CAST(@existe_inmueble AS VARCHAR(10));
+        
+        IF @existe_inmueble = 0
+        BEGIN
+            THROW 50001, 'El inmueble no existe', 1;
+        END
+        
+        -- Validar que el número de plano no exista
+        IF EXISTS (SELECT 1 FROM dbo.Catastro WHERE numero_plano_catastral = @numero_plano_catastral)
+        BEGIN
+            THROW 50002, 'El número de plano catastral ya está registrado', 1;
+        END
+        
+        -- Validar estado
+        IF @estado NOT IN ('Activo', 'Inactivo', 'En Revisión')
+        BEGIN
+            THROW 50003, 'Estado inválido', 1;
+        END
+        
+        -- Validar que el inmueble no tenga ya un catastro activo
+        IF EXISTS (
+            SELECT 1 FROM dbo.Catastro 
+            WHERE inmueble_id = @inmueble_id 
+            AND estado = 'Activo'
+        )
+        BEGIN
+            THROW 50004, 'El inmueble ya tiene un catastro activo', 1;
+        END
+        
+        BEGIN TRANSACTION;
+        
+        INSERT INTO dbo.Catastro (
+            numero_plano_catastral, 
+            area_catastral, 
+            fecha_inscripcion, 
+            estado, 
+            inmueble_id
+        )
+        VALUES (
+            @numero_plano_catastral, 
+            @area_catastral, 
+            @fecha_inscripcion, 
+            @estado, 
+            @inmueble_id
+        );
+        
+        SET @catastro_id = SCOPE_IDENTITY();
+        
+        COMMIT TRANSACTION;
+        
+        SELECT @catastro_id AS catastro_id, 'SUCCESS' AS status;
+        
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+        
+        DECLARE @ErrorMessage NVARCHAR(4000) = ERROR_MESSAGE();
+        DECLARE @ErrorSeverity INT = ERROR_SEVERITY();
+        DECLARE @ErrorState INT = ERROR_STATE();
+        
+        RAISERROR(@ErrorMessage, @ErrorSeverity, @ErrorState);
+    END CATCH
+END;
+GO
+
+-- SP: Consultar Catastro por ID
+IF OBJECT_ID('sp_Catastro_ConsultarPorID', 'P') IS NOT NULL
+    DROP PROCEDURE sp_Catastro_ConsultarPorID;
+GO
+
+CREATE PROCEDURE sp_Catastro_ConsultarPorID
+    @catastro_id INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    
+    SELECT 
+        c.catastro_id,
+        c.numero_plano_catastral,
+        c.area_catastral,
+        c.fecha_inscripcion,
+        c.estado,
+        c.inmueble_id,
+        i.direccion_exacta AS inmueble_direccion,
+        i.area_terreno,
+        i.valor_fiscal
+    FROM Catastro c
+    INNER JOIN Inmueble i ON c.inmueble_id = i.inmueble_id
+    WHERE c.catastro_id = @catastro_id;
+END;
+GO
+
+-- SP: Consultar Catastro por Inmueble
+IF OBJECT_ID('sp_Catastro_ConsultarPorInmueble', 'P') IS NOT NULL
+    DROP PROCEDURE sp_Catastro_ConsultarPorInmueble;
+GO
+
+CREATE PROCEDURE sp_Catastro_ConsultarPorInmueble
+    @inmueble_id INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    
+    SELECT 
+        c.catastro_id,
+        c.numero_plano_catastral,
+        c.area_catastral,
+        c.fecha_inscripcion,
+        c.estado,
+        c.inmueble_id
+    FROM Catastro c
+    WHERE c.inmueble_id = @inmueble_id
+    ORDER BY c.fecha_inscripcion DESC;
+END;
+GO
+
+-- SP: Listar Todos los Catastros
+IF OBJECT_ID('sp_Catastro_ListarTodos', 'P') IS NOT NULL
+    DROP PROCEDURE sp_Catastro_ListarTodos;
+GO
+
+CREATE PROCEDURE sp_Catastro_ListarTodos
+AS
+BEGIN
+    SET NOCOUNT ON;
+    
+    SELECT 
+        c.catastro_id,
+        c.numero_plano_catastral,
+        c.area_catastral,
+        c.fecha_inscripcion,
+        c.estado,
+        c.inmueble_id,
+        i.direccion_exacta AS inmueble_direccion
+    FROM Catastro c
+    INNER JOIN Inmueble i ON c.inmueble_id = i.inmueble_id
+    ORDER BY c.fecha_inscripcion DESC;
+END;
+GO
+
+-- SP: Actualizar Catastro
+IF OBJECT_ID('sp_Catastro_Actualizar', 'P') IS NOT NULL
+    DROP PROCEDURE sp_Catastro_Actualizar;
+GO
+
+CREATE PROCEDURE sp_Catastro_Actualizar
+    @catastro_id INT,
+    @numero_plano_catastral VARCHAR(50),
+    @area_catastral VARCHAR(100) = NULL,
+    @fecha_inscripcion DATE,
+    @estado VARCHAR(20)
+AS
+BEGIN
+    SET NOCOUNT ON;
+    
+    BEGIN TRY
+        -- Validar que el catastro existe
+        IF NOT EXISTS (SELECT 1 FROM Catastro WHERE catastro_id = @catastro_id)
+        BEGIN
+            THROW 50001, 'El catastro no existe', 1;
+        END
+        
+        -- Validar número de plano duplicado (excluyendo el actual)
+        IF EXISTS (
+            SELECT 1 FROM Catastro 
+            WHERE numero_plano_catastral = @numero_plano_catastral 
+            AND catastro_id <> @catastro_id
+        )
+        BEGIN
+            THROW 50002, 'El número de plano catastral ya está registrado', 1;
+        END
+        
+        -- Validar estado
+        IF @estado NOT IN ('Activo', 'Inactivo', 'En Revisión')
+        BEGIN
+            THROW 50003, 'Estado inválido', 1;
+        END
+        
+        BEGIN TRANSACTION;
+        
+        UPDATE Catastro
+        SET 
+            numero_plano_catastral = @numero_plano_catastral,
+            area_catastral = @area_catastral,
+            fecha_inscripcion = @fecha_inscripcion,
+            estado = @estado
+        WHERE catastro_id = @catastro_id;
+        
+        COMMIT TRANSACTION;
+        
+        SELECT 1 AS resultado, 'SUCCESS' AS status;
+        
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH
+END;
+GO
+
+-- SP: Eliminar Catastro
+IF OBJECT_ID('sp_Catastro_Eliminar', 'P') IS NOT NULL
+    DROP PROCEDURE sp_Catastro_Eliminar;
+GO
+
+CREATE PROCEDURE sp_Catastro_Eliminar
+    @catastro_id INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    
+    BEGIN TRY
+        IF NOT EXISTS (SELECT 1 FROM Catastro WHERE catastro_id = @catastro_id)
+        BEGIN
+            THROW 50001, 'El catastro no existe', 1;
+        END
+        
+        BEGIN TRANSACTION;
+        
+        -- Las colindancias se eliminan automáticamente por CASCADE
+        DELETE FROM Catastro WHERE catastro_id = @catastro_id;
+        
+        COMMIT TRANSACTION;
+        
+        SELECT 1 AS resultado, 'SUCCESS' AS status;
+        
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH
+END;
+GO
+
+-- =============================================
+-- SECCIÓN: COLINDANCIAS
+-- =============================================
+
+-- SP: Insertar Colindancia
+IF OBJECT_ID('sp_Colindancia_Insertar', 'P') IS NOT NULL
+    DROP PROCEDURE sp_Colindancia_Insertar;
+GO
+
+CREATE PROCEDURE sp_Colindancia_Insertar
+    @punto_cardinal VARCHAR(10),
+    @colindante VARCHAR(255),
+    @catastro_id INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    
+    DECLARE @colindancia_id INT;
+    
+    BEGIN TRY
+        -- Validar que el catastro existe
+        IF NOT EXISTS (SELECT 1 FROM Catastro WHERE catastro_id = @catastro_id)
+        BEGIN
+            THROW 50001, 'El catastro no existe', 1;
+        END
+        
+        -- Validar punto cardinal
+        IF @punto_cardinal NOT IN ('Norte', 'Sur', 'Este', 'Oeste', 'Noreste', 'Noroeste', 'Sureste', 'Suroeste')
+        BEGIN
+            THROW 50002, 'Punto cardinal inválido', 1;
+        END
+        
+        -- Validar que no exista ya una colindancia con ese punto cardinal para ese catastro
+        IF EXISTS (
+            SELECT 1 FROM Colindancias 
+            WHERE catastro_id = @catastro_id 
+            AND punto_cardinal = @punto_cardinal
+        )
+        BEGIN
+            THROW 50003, 'Ya existe una colindancia registrada para ese punto cardinal', 1;
+        END
+        
+        BEGIN TRANSACTION;
+        
+        INSERT INTO Colindancias (punto_cardinal, colindante, catastro_id)
+        VALUES (@punto_cardinal, @colindante, @catastro_id);
+        
+        SET @colindancia_id = SCOPE_IDENTITY();
+        
+        COMMIT TRANSACTION;
+        
+        SELECT @colindancia_id AS colindancias_id, 'SUCCESS' AS status;
+        
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH
+END;
+GO
+
+-- SP: Listar Colindancias por Catastro
+IF OBJECT_ID('sp_Colindancia_ListarPorCatastro', 'P') IS NOT NULL
+    DROP PROCEDURE sp_Colindancia_ListarPorCatastro;
+GO
+
+CREATE PROCEDURE sp_Colindancia_ListarPorCatastro
+    @catastro_id INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    
+    SELECT 
+        colindancias_id,
+        punto_cardinal,
+        colindante,
+        catastro_id
+    FROM Colindancias
+    WHERE catastro_id = @catastro_id
+    ORDER BY 
+        CASE punto_cardinal
+            WHEN 'Norte' THEN 1
+            WHEN 'Noreste' THEN 2
+            WHEN 'Este' THEN 3
+            WHEN 'Sureste' THEN 4
+            WHEN 'Sur' THEN 5
+            WHEN 'Suroeste' THEN 6
+            WHEN 'Oeste' THEN 7
+            WHEN 'Noroeste' THEN 8
+        END;
+END;
+GO
+
+-- SP: Actualizar Colindancia
+IF OBJECT_ID('sp_Colindancia_Actualizar', 'P') IS NOT NULL
+    DROP PROCEDURE sp_Colindancia_Actualizar;
+GO
+
+CREATE PROCEDURE sp_Colindancia_Actualizar
+    @colindancias_id INT,
+    @punto_cardinal VARCHAR(10),
+    @colindante VARCHAR(255)
+AS
+BEGIN
+    SET NOCOUNT ON;
+    
+    BEGIN TRY
+        -- Validar que la colindancia existe
+        IF NOT EXISTS (SELECT 1 FROM Colindancias WHERE colindancias_id = @colindancias_id)
+        BEGIN
+            THROW 50001, 'La colindancia no existe', 1;
+        END
+        
+        -- Validar punto cardinal
+        IF @punto_cardinal NOT IN ('Norte', 'Sur', 'Este', 'Oeste', 'Noreste', 'Noroeste', 'Sureste', 'Suroeste')
+        BEGIN
+            THROW 50002, 'Punto cardinal inválido', 1;
+        END
+        
+        -- Validar duplicados en el mismo catastro
+        DECLARE @catastro_id INT;
+        SELECT @catastro_id = catastro_id FROM Colindancias WHERE colindancias_id = @colindancias_id;
+        
+        IF EXISTS (
+            SELECT 1 FROM Colindancias 
+            WHERE catastro_id = @catastro_id 
+            AND punto_cardinal = @punto_cardinal 
+            AND colindancias_id <> @colindancias_id
+        )
+        BEGIN
+            THROW 50003, 'Ya existe una colindancia para ese punto cardinal', 1;
+        END
+        
+        BEGIN TRANSACTION;
+        
+        UPDATE Colindancias
+        SET 
+            punto_cardinal = @punto_cardinal,
+            colindante = @colindante
+        WHERE colindancias_id = @colindancias_id;
+        
+        COMMIT TRANSACTION;
+        
+        SELECT 1 AS resultado, 'SUCCESS' AS status;
+        
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH
+END;
+GO
+
+-- SP: Eliminar Colindancia
+IF OBJECT_ID('sp_Colindancia_Eliminar', 'P') IS NOT NULL
+    DROP PROCEDURE sp_Colindancia_Eliminar;
+GO
+
+CREATE PROCEDURE sp_Colindancia_Eliminar
+    @colindancias_id INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    
+    BEGIN TRY
+        IF NOT EXISTS (SELECT 1 FROM Colindancias WHERE colindancias_id = @colindancias_id)
+        BEGIN
+            THROW 50001, 'La colindancia no existe', 1;
+        END
+        
+        BEGIN TRANSACTION;
+        
+        DELETE FROM Colindancias WHERE colindancias_id = @colindancias_id;
+        
+        COMMIT TRANSACTION;
+        
+        SELECT 1 AS resultado, 'SUCCESS' AS status;
+        
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH
+END;
+GO
+
+-- =============================================
+-- SECCIÓN: OBSERVACIONES DE INMUEBLES
+-- =============================================
+
+-- SP: Insertar Observación
+IF OBJECT_ID('sp_ObservacionInmueble_Insertar', 'P') IS NOT NULL
+    DROP PROCEDURE sp_ObservacionInmueble_Insertar;
+GO
+
+CREATE PROCEDURE sp_ObservacionInmueble_Insertar
+    @descripcion VARCHAR(300),
+    @inmueble_id INT,
+    @catastro_id INT = NULL,
+    @fecha DATE = NULL
+AS
+BEGIN
+    SET NOCOUNT ON;
+    
+    DECLARE @observacion_id INT;
+    
+    BEGIN TRY
+        -- Validar que el inmueble existe
+        IF NOT EXISTS (SELECT 1 FROM Inmueble WHERE inmueble_id = @inmueble_id)
+        BEGIN
+            THROW 50001, 'El inmueble no existe', 1;
+        END
+        
+        -- Si se proporciona catastro_id, validar que existe
+        IF @catastro_id IS NOT NULL AND NOT EXISTS (SELECT 1 FROM Catastro WHERE catastro_id = @catastro_id)
+        BEGIN
+            THROW 50002, 'El catastro no existe', 1;
+        END
+        
+        -- Si no se proporciona fecha, usar la fecha actual
+        IF @fecha IS NULL
+            SET @fecha = CAST(GETDATE() AS DATE);
+        
+        BEGIN TRANSACTION;
+        
+        INSERT INTO ObservacionInmueble (fecha, descripcion, inmueble_id, catastro_id)
+        VALUES (@fecha, @descripcion, @inmueble_id, @catastro_id);
+        
+        SET @observacion_id = SCOPE_IDENTITY();
+        
+        COMMIT TRANSACTION;
+        
+        SELECT @observacion_id AS observacion_inmueble_id, 'SUCCESS' AS status;
+        
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH
+END;
+GO
+
+-- SP: Listar Observaciones por Inmueble
+IF OBJECT_ID('sp_ObservacionInmueble_ListarPorInmueble', 'P') IS NOT NULL
+    DROP PROCEDURE sp_ObservacionInmueble_ListarPorInmueble;
+GO
+
+CREATE PROCEDURE sp_ObservacionInmueble_ListarPorInmueble
+    @inmueble_id INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    
+    SELECT 
+        o.observacion_inmueble_id,
+        o.fecha,
+        o.descripcion,
+        o.inmueble_id,
+        o.catastro_id,
+        c.numero_plano_catastral
+    FROM ObservacionInmueble o
+    LEFT JOIN Catastro c ON o.catastro_id = c.catastro_id
+    WHERE o.inmueble_id = @inmueble_id
+    ORDER BY o.fecha DESC;
+END;
+GO
+
+-- SP: Listar Observaciones por Catastro
+IF OBJECT_ID('sp_ObservacionInmueble_ListarPorCatastro', 'P') IS NOT NULL
+    DROP PROCEDURE sp_ObservacionInmueble_ListarPorCatastro;
+GO
+
+CREATE PROCEDURE sp_ObservacionInmueble_ListarPorCatastro
+    @catastro_id INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    
+    SELECT 
+        o.observacion_inmueble_id,
+        o.fecha,
+        o.descripcion,
+        o.inmueble_id,
+        o.catastro_id,
+        i.direccion_exacta AS inmueble_direccion
+    FROM ObservacionInmueble o
+    INNER JOIN Inmueble i ON o.inmueble_id = i.inmueble_id
+    WHERE o.catastro_id = @catastro_id
+    ORDER BY o.fecha DESC;
+END;
+GO
+
+-- SP: Actualizar Observación
+IF OBJECT_ID('sp_ObservacionInmueble_Actualizar', 'P') IS NOT NULL
+    DROP PROCEDURE sp_ObservacionInmueble_Actualizar;
+GO
+
+CREATE PROCEDURE sp_ObservacionInmueble_Actualizar
+    @observacion_inmueble_id INT,
+    @descripcion VARCHAR(300),
+    @fecha DATE = NULL
+AS
+BEGIN
+    SET NOCOUNT ON;
+    
+    BEGIN TRY
+        IF NOT EXISTS (SELECT 1 FROM ObservacionInmueble WHERE observacion_inmueble_id = @observacion_inmueble_id)
+        BEGIN
+            THROW 50001, 'La observación no existe', 1;
+        END
+        
+        IF @fecha IS NULL
+            SET @fecha = CAST(GETDATE() AS DATE);
+        
+        BEGIN TRANSACTION;
+        
+        UPDATE ObservacionInmueble
+        SET 
+            descripcion = @descripcion,
+            fecha = @fecha
+        WHERE observacion_inmueble_id = @observacion_inmueble_id;
+        
+        COMMIT TRANSACTION;
+        
+        SELECT 1 AS resultado, 'SUCCESS' AS status;
+        
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH
+END;
+GO
+
+-- SP: Eliminar Observación
+IF OBJECT_ID('sp_ObservacionInmueble_Eliminar', 'P') IS NOT NULL
+    DROP PROCEDURE sp_ObservacionInmueble_Eliminar;
+GO
+
+CREATE PROCEDURE sp_ObservacionInmueble_Eliminar
+    @observacion_inmueble_id INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    
+    BEGIN TRY
+        IF NOT EXISTS (SELECT 1 FROM ObservacionInmueble WHERE observacion_inmueble_id = @observacion_inmueble_id)
+        BEGIN
+            THROW 50001, 'La observación no existe', 1;
+        END
+        
+        BEGIN TRANSACTION;
+        
+        DELETE FROM ObservacionInmueble WHERE observacion_inmueble_id = @observacion_inmueble_id;
+        
+        COMMIT TRANSACTION;
+        
+        SELECT 1 AS resultado, 'SUCCESS' AS status;
+        
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH
+END;
+GO
+
+-- =============================================
+-- SP AVANZADO: Consultar Catastro Completo con Colindancias
+-- =============================================
+IF OBJECT_ID('sp_Catastro_ConsultarCompleto', 'P') IS NOT NULL
+    DROP PROCEDURE sp_Catastro_ConsultarCompleto;
+GO
+
+CREATE PROCEDURE sp_Catastro_ConsultarCompleto
+    @catastro_id INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    
+    -- Datos del catastro e inmueble
+    SELECT 
+        c.catastro_id,
+        c.numero_plano_catastral,
+        c.area_catastral,
+        c.fecha_inscripcion,
+        c.estado,
+        c.inmueble_id,
+        i.direccion_exacta,
+        i.area_terreno,
+        i.valor_fiscal,
+        i.estado_ocupacional,
+        t.nombre_uso AS tipo_uso
+    FROM Catastro c
+    INNER JOIN Inmueble i ON c.inmueble_id = i.inmueble_id
+    INNER JOIN TipoUsoInmueble t ON i.tipo_uso_inmueble_id = t.tipo_uso_inmueble_id
+    WHERE c.catastro_id = @catastro_id;
+    
+    -- Colindancias
+    SELECT 
+        colindancias_id,
+        punto_cardinal,
+        colindante
+    FROM Colindancias
+    WHERE catastro_id = @catastro_id
+    ORDER BY 
+        CASE punto_cardinal
+            WHEN 'Norte' THEN 1
+            WHEN 'Noreste' THEN 2
+            WHEN 'Este' THEN 3
+            WHEN 'Sureste' THEN 4
+            WHEN 'Sur' THEN 5
+            WHEN 'Suroeste' THEN 6
+            WHEN 'Oeste' THEN 7
+            WHEN 'Noroeste' THEN 8
+        END;
+    
+    -- Observaciones
+    SELECT 
+        observacion_inmueble_id,
+        fecha,
+        descripcion
+    FROM ObservacionInmueble
+    WHERE catastro_id = @catastro_id
+    ORDER BY fecha DESC;
+END;
+GO
+
+PRINT '';
+PRINT '========================================';
+PRINT '✓ STORED PROCEDURES - CATASTRO Y OBSERVACIONES';
+PRINT '========================================';
+PRINT 'SPs Catastro:';
+PRINT '  - sp_Catastro_Insertar';
+PRINT '  - sp_Catastro_ConsultarPorID';
+PRINT '  - sp_Catastro_ConsultarPorInmueble';
+PRINT '  - sp_Catastro_ListarTodos';
+PRINT '  - sp_Catastro_Actualizar';
+PRINT '  - sp_Catastro_Eliminar';
+PRINT '  - sp_Catastro_ConsultarCompleto';
+PRINT '';
+PRINT 'SPs Colindancias:';
+PRINT '  - sp_Colindancia_Insertar';
+PRINT '  - sp_Colindancia_ListarPorCatastro';
+PRINT '  - sp_Colindancia_Actualizar';
+PRINT '  - sp_Colindancia_Eliminar';
+PRINT '';
+PRINT 'SPs Observaciones:';
+PRINT '  - sp_ObservacionInmueble_Insertar';
+PRINT '  - sp_ObservacionInmueble_ListarPorInmueble';
+PRINT '  - sp_ObservacionInmueble_ListarPorCatastro';
+PRINT '  - sp_ObservacionInmueble_Actualizar';
+PRINT '  - sp_ObservacionInmueble_Eliminar';
+PRINT '========================================';
+GO
+
+
+-- =============================================
+-- EJEMPLOS DE PRUEBA - CATASTRO Y COLINDANCIAS
+-- =============================================
+
+USE MunicipalidadNicoya;
+GO
+
+PRINT '========================================';
+PRINT 'PRUEBAS: Catastro, Colindancias y Observaciones';
+PRINT '========================================';
+GO
+
+-- =============================================
+-- 1. INSERTAR CATASTRO
+-- =============================================
+PRINT '1. Insertando catastro...';
+GO
+
+DECLARE @catastro_id INT;
+
+EXEC sp_Catastro_Insertar
+    @numero_plano_catastral = 'G-1234567-2024',
+    @area_catastral = 'Zona Norte Nicoya',
+    @fecha_inscripcion = '2024-01-15',
+    @estado = 'Activo',
+    @inmueble_id = 1;
+
+SET @catastro_id = (SELECT TOP 1 catastro_id FROM Catastro ORDER BY catastro_id DESC);
+PRINT 'Catastro insertado con ID: ' + CAST(@catastro_id AS VARCHAR(10));
+GO
+
+-- =============================================
+-- 2. INSERTAR COLINDANCIAS
+-- =============================================
+PRINT '';
+PRINT '2. Insertando colindancias...';
+GO
+
+DECLARE @catastro_id INT = (SELECT TOP 1 catastro_id FROM Catastro ORDER BY catastro_id DESC);
+
+EXEC sp_Colindancia_Insertar
+    @punto_cardinal = 'Norte',
+    @colindante = 'Propiedad de Juan Pérez',
+    @catastro_id = @catastro_id;
+
+EXEC sp_Colindancia_Insertar
+    @punto_cardinal = 'Sur',
+    @colindante = 'Calle Pública',
+    @catastro_id = @catastro_id;
+
+EXEC sp_Colindancia_Insertar
+    @punto_cardinal = 'Este',
+    @colindante = 'Propiedad de María González',
+    @catastro_id = @catastro_id;
+
+EXEC sp_Colindancia_Insertar
+    @punto_cardinal = 'Oeste',
+    @colindante = 'Río Tempisque',
+    @catastro_id = @catastro_id;
+
+PRINT 'Colindancias insertadas correctamente';
+GO
+
+-- =============================================
+-- 3. INSERTAR OBSERVACIONES
+-- =============================================
+PRINT '';
+PRINT '3. Insertando observaciones...';
+GO
+
+DECLARE @inmueble_id INT = 1;
+DECLARE @catastro_id INT = (SELECT TOP 1 catastro_id FROM Catastro ORDER BY catastro_id DESC);
+
+EXEC sp_ObservacionInmueble_Insertar
+    @descripcion = 'Inmueble en excelente estado de conservación',
+    @inmueble_id = @inmueble_id,
+    @catastro_id = @catastro_id;
+
+EXEC sp_ObservacionInmueble_Insertar
+    @descripcion = 'Requiere actualización de avalúo fiscal',
+    @inmueble_id = @inmueble_id,
+    @catastro_id = @catastro_id;
+
+PRINT 'Observaciones insertadas correctamente';
+GO

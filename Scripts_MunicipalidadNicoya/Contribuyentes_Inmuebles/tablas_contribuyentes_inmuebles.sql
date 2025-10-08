@@ -190,3 +190,96 @@ PRINT '✓ MÓDULO CONTRIBUYENTES E INMUEBLES';
 PRINT '  Todas las tablas creadas exitosamente';
 PRINT '========================================';
 GO
+
+use MunicipalidadNicoya
+go
+-- =============================================
+-- TABLA: Catastro
+-- =============================================
+CREATE TABLE dbo.Catastro
+(
+    catastro_id INT IDENTITY(1,1) NOT NULL,
+    numero_plano_catastral VARCHAR(50) NOT NULL,
+    area_catastral VARCHAR(100) NULL,
+    fecha_inscripcion DATE NOT NULL,
+    estado VARCHAR(20) NOT NULL DEFAULT 'Activo',
+    inmueble_id INT NOT NULL,
+    
+    CONSTRAINT PK_Catastro PRIMARY KEY (catastro_id),
+    CONSTRAINT FK_Catastro_Inmueble 
+        FOREIGN KEY (inmueble_id) REFERENCES dbo.Inmueble(inmueble_id)
+        ON DELETE CASCADE,
+    CONSTRAINT UQ_Catastro_NumeroPlano UNIQUE (numero_plano_catastral),
+    CONSTRAINT CK_Catastro_Estado CHECK (estado IN ('Activo', 'Inactivo', 'En Revisión'))
+);
+GO
+
+CREATE INDEX IX_Catastro_Inmueble ON dbo.Catastro(inmueble_id);
+GO
+
+PRINT '✓ Tabla Catastro creada';
+GO
+
+-- =============================================
+-- TABLA: Colindancias
+-- =============================================
+CREATE TABLE dbo.Colindancias
+(
+    colindancias_id INT IDENTITY(1,1) NOT NULL,
+    punto_cardinal VARCHAR(10) NOT NULL,
+    colindante VARCHAR(255) NOT NULL,
+    catastro_id INT NOT NULL,
+    
+    CONSTRAINT PK_Colindancias PRIMARY KEY (colindancias_id),
+    CONSTRAINT FK_Colindancias_Catastro 
+        FOREIGN KEY (catastro_id) REFERENCES dbo.Catastro(catastro_id)
+        ON DELETE CASCADE,
+    CONSTRAINT CK_Colindancias_PuntoCardinal 
+        CHECK (punto_cardinal IN ('Norte', 'Sur', 'Este', 'Oeste', 'Noreste', 'Noroeste', 'Sureste', 'Suroeste'))
+);
+GO
+
+CREATE INDEX IX_Colindancias_Catastro ON dbo.Colindancias(catastro_id);
+GO
+
+PRINT '✓ Tabla Colindancias creada';
+GO
+
+-- =============================================
+-- TABLA: ObservacionInmueble
+-- =============================================
+CREATE TABLE dbo.ObservacionInmueble
+(
+    observacion_inmueble_id INT IDENTITY(1,1) NOT NULL,
+    fecha DATE NOT NULL DEFAULT CAST(GETDATE() AS DATE),
+    descripcion VARCHAR(300) NOT NULL,
+    inmueble_id INT NOT NULL,
+    catastro_id INT NULL,
+    
+    CONSTRAINT PK_ObservacionInmueble PRIMARY KEY (observacion_inmueble_id),
+    CONSTRAINT FK_ObservacionInmueble_Inmueble 
+        FOREIGN KEY (inmueble_id) REFERENCES dbo.Inmueble(inmueble_id)
+        ON DELETE CASCADE,
+    CONSTRAINT FK_ObservacionInmueble_Catastro 
+        FOREIGN KEY (catastro_id) REFERENCES dbo.Catastro(catastro_id)
+        ON DELETE NO ACTION
+);
+GO
+
+CREATE INDEX IX_ObservacionInmueble_Inmueble ON dbo.ObservacionInmueble(inmueble_id);
+CREATE INDEX IX_ObservacionInmueble_Catastro ON dbo.ObservacionInmueble(catastro_id);
+GO
+
+PRINT '✓ Tabla ObservacionInmueble creada';
+GO
+
+PRINT '';
+PRINT '========================================';
+PRINT '✓ TABLAS CREADAS';
+PRINT '  - Catastro';
+PRINT '  - Colindancias';
+PRINT '  - ObservacionInmueble';
+PRINT '========================================';
+GO
+
+
