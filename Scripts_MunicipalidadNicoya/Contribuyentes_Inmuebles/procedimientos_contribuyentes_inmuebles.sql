@@ -221,14 +221,34 @@ BEGIN
             RETURN;
         END
         
+        -- ✅ VALIDACIÓN 1: Verificar si es representante legal de alguna empresa
+        IF EXISTS (
+            SELECT 1 
+            FROM Contribuyente_juridico cj
+            INNER JOIN Contribuyente_fisico cf ON cj.representante_legal_id = cf.contribuyentes_fisicos_id
+            WHERE cf.contribuyente_id = @contribuyente_id
+        )
+        BEGIN
+            RAISERROR('No se puede eliminar: el contribuyente es representante legal de una o más empresas', 16, 1);
+            RETURN;
+        END
+        
+        -- ✅ VALIDACIÓN 2: Verificar si tiene inmuebles asociados
+        IF EXISTS (
+            SELECT 1 FROM Contribuyente_Inmueble 
+            WHERE contribuyente_id = @contribuyente_id
+        )
+        BEGIN
+            RAISERROR('No se puede eliminar: el contribuyente tiene inmuebles asociados', 16, 1);
+            RETURN;
+        END
+        
         BEGIN TRANSACTION;
         
         -- Las tablas hijas se eliminan automáticamente por CASCADE
         DELETE FROM Contribuyente WHERE contribuyente_id = @contribuyente_id;
         
         COMMIT TRANSACTION;
-        
-        SELECT 1 AS resultado;
         
     END TRY
     BEGIN CATCH
@@ -240,6 +260,9 @@ BEGIN
         RETURN;
     END CATCH
 END;
+GO
+
+PRINT '✓ SP sp_Contribuyente_Eliminar actualizado con validaciones de negocio';
 GO
 
 -- =============================================
@@ -361,7 +384,7 @@ BEGIN
         
         COMMIT TRANSACTION;
         
-        SELECT 1 AS resultado, 'SUCCESS' AS status;
+      
         
     END TRY
     BEGIN CATCH
@@ -526,7 +549,6 @@ BEGIN
         
         COMMIT TRANSACTION;
         
-        SELECT 1 AS resultado, 'SUCCESS' AS status;
         
     END TRY
     BEGIN CATCH
@@ -560,7 +582,6 @@ BEGIN
         
         COMMIT TRANSACTION;
         
-        SELECT 1 AS resultado, 'SUCCESS' AS status;
         
     END TRY
     BEGIN CATCH
@@ -598,8 +619,7 @@ BEGIN
         AND inmueble_id = @inmueble_id;
         
         COMMIT TRANSACTION;
-        
-        SELECT 1 AS resultado, 'SUCCESS' AS status;
+     
         
     END TRY
     BEGIN CATCH
@@ -859,7 +879,6 @@ BEGIN
         
         COMMIT TRANSACTION;
         
-        SELECT 1 AS resultado, 'SUCCESS' AS status;
         
     END TRY
     BEGIN CATCH
@@ -894,7 +913,6 @@ BEGIN
         
         COMMIT TRANSACTION;
         
-        SELECT 1 AS resultado, 'SUCCESS' AS status;
         
     END TRY
     BEGIN CATCH
@@ -1059,7 +1077,6 @@ BEGIN
         
         COMMIT TRANSACTION;
         
-        SELECT 1 AS resultado, 'SUCCESS' AS status;
         
     END TRY
     BEGIN CATCH
@@ -1096,7 +1113,6 @@ BEGIN
         
         COMMIT TRANSACTION;
         
-        SELECT 1 AS resultado, 'SUCCESS' AS status;
         
     END TRY
     BEGIN CATCH
@@ -1233,7 +1249,6 @@ BEGIN
         
         COMMIT TRANSACTION;
         
-        SELECT 1 AS resultado, 'SUCCESS' AS status;
         
     END TRY
     BEGIN CATCH
@@ -1267,7 +1282,6 @@ BEGIN
         
         COMMIT TRANSACTION;
         
-        SELECT 1 AS resultado, 'SUCCESS' AS status;
         
     END TRY
     BEGIN CATCH
