@@ -999,7 +999,7 @@ BEGIN
 END;
 GO
 
--- SP: Actualizar Colindancia
+-- SP: Actualizar Colindancia (CORREGIDO)
 IF OBJECT_ID('sp_Colindancia_Actualizar', 'P') IS NOT NULL
     DROP PROCEDURE sp_Colindancia_Actualizar;
 GO
@@ -1020,23 +1020,33 @@ BEGIN
         END
         
         -- Validar punto cardinal
-        IF @punto_cardinal NOT IN ('Norte', 'Sur', 'Este', 'Oeste', 'Noreste', 'Noroeste', 'Sureste', 'Suroeste')
+        IF @punto_cardinal NOT IN ('Norte', 'Sur', 'Este', 'Oeste')
         BEGIN
             THROW 50002, 'Punto cardinal inválido', 1;
         END
         
-        -- Validar duplicados en el mismo catastro
+        -- Obtener el catastro_id y punto_cardinal actual
         DECLARE @catastro_id INT;
-        SELECT @catastro_id = catastro_id FROM Colindancias WHERE colindancias_id = @colindancias_id;
+        DECLARE @punto_cardinal_actual VARCHAR(10);
         
-        IF EXISTS (
-            SELECT 1 FROM Colindancias 
-            WHERE catastro_id = @catastro_id 
-            AND punto_cardinal = @punto_cardinal 
-            AND colindancias_id <> @colindancias_id
-        )
+        SELECT 
+            @catastro_id = catastro_id,
+            @punto_cardinal_actual = punto_cardinal
+        FROM Colindancias 
+        WHERE colindancias_id = @colindancias_id;
+        
+        -- ✅ CORRECCIÓN: Solo validar duplicados SI se está CAMBIANDO el punto cardinal
+        IF @punto_cardinal <> @punto_cardinal_actual
         BEGIN
-            THROW 50003, 'Ya existe una colindancia para ese punto cardinal', 1;
+            IF EXISTS (
+                SELECT 1 FROM Colindancias 
+                WHERE catastro_id = @catastro_id 
+                AND punto_cardinal = @punto_cardinal 
+                AND colindancias_id <> @colindancias_id
+            )
+            BEGIN
+                THROW 50003, 'Ya existe una colindancia para ese punto cardinal', 1;
+            END
         END
         
         BEGIN TRANSACTION;
@@ -1058,6 +1068,9 @@ BEGIN
         THROW;
     END CATCH
 END;
+GO
+
+PRINT '✓ SP sp_Colindancia_Actualizar corregido';
 GO
 
 -- SP: Eliminar Colindancia
@@ -1106,7 +1119,6 @@ GO
 CREATE PROCEDURE sp_ObservacionInmueble_Insertar
     @descripcion VARCHAR(300),
     @inmueble_id INT,
-    @catastro_id INT = NULL,
     @fecha DATE = NULL
 AS
 BEGIN
@@ -1121,20 +1133,20 @@ BEGIN
             THROW 50001, 'El inmueble no existe', 1;
         END
         
-        -- Si se proporciona catastro_id, validar que existe
-        IF @catastro_id IS NOT NULL AND NOT EXISTS (SELECT 1 FROM Catastro WHERE catastro_id = @catastro_id)
+          -- Validar que la descripción no esté vacía
+        IF LEN(TRIM(@descripcion)) = 0
         BEGIN
-            THROW 50002, 'El catastro no existe', 1;
+            THROW 50002, 'La descripción no puede estar vacía', 1;
         END
-        
+
         -- Si no se proporciona fecha, usar la fecha actual
         IF @fecha IS NULL
             SET @fecha = CAST(GETDATE() AS DATE);
         
         BEGIN TRANSACTION;
         
-        INSERT INTO ObservacionInmueble (fecha, descripcion, inmueble_id, catastro_id)
-        VALUES (@fecha, @descripcion, @inmueble_id, @catastro_id);
+        INSERT INTO ObservacionInmueble (fecha, descripcion, inmueble_id)
+        VALUES (@fecha, @descripcion, @inmueble_id);
         
         SET @observacion_id = SCOPE_IDENTITY();
         
@@ -1167,10 +1179,14 @@ BEGIN
         o.fecha,
         o.descripcion,
         o.inmueble_id,
-        o.catastro_id,
-        c.numero_plano_catastral
+        i.direccion_exacta AS inmueble_direccion,
+        -- Información del catastro asociado al inmueble
+        c.catastro_id,
+        c.numero_plano_catastral,
+        c.estado AS catastro_estado
     FROM ObservacionInmueble o
-    LEFT JOIN Catastro c ON o.catastro_id = c.catastro_id
+    INNER JOIN Inmueble i ON o.inmueble_id = i.inmueble_id
+    LEFT JOIN Catastro c ON i.inmueble_id = c.inmueble_id AND c.estado = 'Activo'
     WHERE o.inmueble_id = @inmueble_id
     ORDER BY o.fecha DESC;
 END;
@@ -1181,25 +1197,9 @@ IF OBJECT_ID('sp_ObservacionInmueble_ListarPorCatastro', 'P') IS NOT NULL
     DROP PROCEDURE sp_ObservacionInmueble_ListarPorCatastro;
 GO
 
-CREATE PROCEDURE sp_ObservacionInmueble_ListarPorCatastro
-    @catastro_id INT
-AS
-BEGIN
-    SET NOCOUNT ON;
-    
-    SELECT 
-        o.observacion_inmueble_id,
-        o.fecha,
-        o.descripcion,
-        o.inmueble_id,
-        o.catastro_id,
-        i.direccion_exacta AS inmueble_direccion
-    FROM ObservacionInmueble o
-    INNER JOIN Inmueble i ON o.inmueble_id = i.inmueble_id
-    WHERE o.catastro_id = @catastro_id
-    ORDER BY o.fecha DESC;
-END;
+PRINT '✓ SP obsoleto sp_ObservacionInmueble_ListarPorCatastro eliminado';
 GO
+
 
 -- SP: Actualizar Observación
 IF OBJECT_ID('sp_ObservacionInmueble_Actualizar', 'P') IS NOT NULL
@@ -1291,6 +1291,13 @@ AS
 BEGIN
     SET NOCOUNT ON;
     
+    DECLARE @inmueble_id INT;
+    
+    -- Obtener el inmueble_id del catastro
+    SELECT @inmueble_id = inmueble_id 
+    FROM Catastro 
+    WHERE catastro_id = @catastro_id;
+    
     -- Datos del catastro e inmueble
     SELECT 
         c.catastro_id,
@@ -1319,22 +1326,19 @@ BEGIN
     ORDER BY 
         CASE punto_cardinal
             WHEN 'Norte' THEN 1
-            WHEN 'Noreste' THEN 2
-            WHEN 'Este' THEN 3
-            WHEN 'Sureste' THEN 4
-            WHEN 'Sur' THEN 5
-            WHEN 'Suroeste' THEN 6
-            WHEN 'Oeste' THEN 7
-            WHEN 'Noroeste' THEN 8
+            WHEN 'Este' THEN 2
+            WHEN 'Sur' THEN 3
+            WHEN 'Oeste' THEN 4
         END;
     
-    -- Observaciones
+    -- Observaciones del inmueble asociado
     SELECT 
         observacion_inmueble_id,
         fecha,
-        descripcion
+        descripcion,
+        inmueble_id
     FROM ObservacionInmueble
-    WHERE catastro_id = @catastro_id
+    WHERE inmueble_id = @inmueble_id
     ORDER BY fecha DESC;
 END;
 GO
@@ -1368,88 +1372,450 @@ PRINT '========================================';
 GO
 
 
+
+
+
+
 -- =============================================
--- EJEMPLOS DE PRUEBA - CATASTRO Y COLINDANCIAS
+-- SP NUEVO: Listar Observaciones con Catastro
+-- =============================================
+IF OBJECT_ID('sp_ObservacionInmueble_ListarConCatastro', 'P') IS NOT NULL
+    DROP PROCEDURE sp_ObservacionInmueble_ListarConCatastro;
+GO
+
+CREATE PROCEDURE sp_ObservacionInmueble_ListarConCatastro
+    @inmueble_id INT = NULL,
+    @catastro_id INT = NULL
+AS
+BEGIN
+    SET NOCOUNT ON;
+    
+    -- Si se proporciona catastro_id, obtener el inmueble_id
+    IF @catastro_id IS NOT NULL
+    BEGIN
+        SELECT @inmueble_id = inmueble_id 
+        FROM Catastro 
+        WHERE catastro_id = @catastro_id;
+        
+        IF @inmueble_id IS NULL
+        BEGIN
+            THROW 50001, 'El catastro no existe', 1;
+        END
+    END
+    
+    -- Validar que se proporcionó al menos un parámetro
+    IF @inmueble_id IS NULL
+    BEGIN
+        THROW 50002, 'Debe proporcionar inmueble_id o catastro_id', 1;
+    END
+    
+    SELECT 
+        o.observacion_inmueble_id,
+        o.fecha,
+        o.descripcion,
+        o.inmueble_id,
+        i.direccion_exacta,
+        i.area_terreno,
+        i.valor_fiscal,
+        c.catastro_id,
+        c.numero_plano_catastral,
+        c.area_catastral,
+        c.estado AS catastro_estado
+    FROM ObservacionInmueble o
+    INNER JOIN Inmueble i ON o.inmueble_id = i.inmueble_id
+    LEFT JOIN Catastro c ON i.inmueble_id = c.inmueble_id
+    WHERE o.inmueble_id = @inmueble_id
+    ORDER BY o.fecha DESC;
+END;
+GO
+
+PRINT '';
+PRINT '========================================';
+PRINT '✓ STORED PROCEDURES ACTUALIZADOS';
+PRINT '========================================';
+PRINT 'SPs Corregidos:';
+PRINT '  - sp_ObservacionInmueble_Insertar (sin catastro_id)';
+PRINT '  - sp_ObservacionInmueble_ListarPorInmueble';
+PRINT '  - sp_Catastro_ConsultarCompleto';
+PRINT '';
+PRINT 'SPs Nuevos:';
+PRINT '  - sp_ObservacionInmueble_ListarConCatastro';
+PRINT '';
+PRINT 'SPs Eliminados:';
+PRINT '  - sp_ObservacionInmueble_ListarPorCatastro (obsoleto)';
+PRINT '========================================';
+GO
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+-- =============================================
+-- SCRIPT CORREGIDO: DATOS DE PRUEBA Y TESTS
 -- =============================================
 
 USE MunicipalidadNicoya;
 GO
 
+PRINT '';
 PRINT '========================================';
-PRINT 'PRUEBAS: Catastro, Colindancias y Observaciones';
+PRINT 'PREPARANDO DATOS DE PRUEBA';
 PRINT '========================================';
 GO
 
 -- =============================================
--- 1. INSERTAR CATASTRO
+-- LIMPIAR DATOS PREVIOS (OPCIONAL)
 -- =============================================
-PRINT '1. Insertando catastro...';
+PRINT '1. Limpiando datos previos...';
 GO
 
-DECLARE @catastro_id INT;
+DELETE FROM ObservacionInmueble;
+DELETE FROM Colindancias;
+DELETE FROM Catastro;
+DELETE FROM Contribuyente_Inmueble;
+DELETE FROM Inmueble;
+DELETE FROM Contribuyente_juridico;
+DELETE FROM Contribuyente_fisico;
+DELETE FROM Contribuyente;
+GO
 
-EXEC sp_Catastro_Insertar
-    @numero_plano_catastral = 'G-1234567-2024',
-    @area_catastral = 'Zona Norte Nicoya',
-    @fecha_inscripcion = '2024-01-15',
-    @estado = 'Activo',
-    @inmueble_id = 1;
-
-SET @catastro_id = (SELECT TOP 1 catastro_id FROM Catastro ORDER BY catastro_id DESC);
-PRINT 'Catastro insertado con ID: ' + CAST(@catastro_id AS VARCHAR(10));
+PRINT '✓ Datos previos eliminados';
 GO
 
 -- =============================================
--- 2. INSERTAR COLINDANCIAS
+-- INSERTAR CONTRIBUYENTES DE PRUEBA
 -- =============================================
 PRINT '';
-PRINT '2. Insertando colindancias...';
+PRINT '2. Insertando contribuyentes de prueba...';
 GO
 
-DECLARE @catastro_id INT = (SELECT TOP 1 catastro_id FROM Catastro ORDER BY catastro_id DESC);
+DECLARE @contribuyente1_id INT;
+DECLARE @contribuyente2_id INT;
+
+-- Contribuyente Físico 1
+EXEC sp_Contribuyente_InsertarFisico
+    @cedula = '1-0234-0567',
+    @nombre = 'Juan',
+    @apellido1 = 'Pérez',
+    @apellido2 = 'González',
+    @telefono = '2685-1234',
+    @email = 'juan.perez@email.com',
+    @direccion = 'Nicoya Centro, 200m norte del parque';
+
+SET @contribuyente1_id = (SELECT TOP 1 contribuyente_id FROM Contribuyente ORDER BY contribuyente_id DESC);
+
+-- Contribuyente Físico 2 (para representante legal)
+EXEC sp_Contribuyente_InsertarFisico
+    @cedula = '1-0345-0678',
+    @nombre = 'María',
+    @apellido1 = 'González',
+    @apellido2 = 'Rodríguez',
+    @telefono = '2685-5678',
+    @email = 'maria.gonzalez@email.com',
+    @direccion = 'Nicoya, Barrio San Martín';
+
+SET @contribuyente2_id = (SELECT TOP 1 contribuyente_id FROM Contribuyente ORDER BY contribuyente_id DESC);
+
+-- Contribuyente Jurídico
+DECLARE @representante_id INT = (SELECT contribuyentes_fisicos_id FROM Contribuyente_fisico WHERE contribuyente_id = @contribuyente2_id);
+
+EXEC sp_Contribuyente_InsertarJuridico
+    @cedula_juridica = '3-101-234567',
+    @nombre_empresa = 'Nicoya Desarrollos S.A.',
+    @representante_legal_id = @representante_id,
+    @telefono = '2685-9999',
+    @email = 'info@nicoyadesarrollos.cr',
+    @direccion = 'Nicoya, Zona Industrial';
+
+PRINT '✓ Contribuyentes insertados';
+PRINT '  - Contribuyente 1 ID: ' + CAST(@contribuyente1_id AS VARCHAR(10));
+PRINT '  - Contribuyente 2 ID: ' + CAST(@contribuyente2_id AS VARCHAR(10));
+GO
+
+-- =============================================
+-- INSERTAR INMUEBLES DE PRUEBA
+-- =============================================
+PRINT '';
+PRINT '3. Insertando inmuebles de prueba...';
+GO
+
+DECLARE @inmueble1_id INT;
+DECLARE @inmueble2_id INT;
+DECLARE @inmueble3_id INT;
+
+-- Inmueble 1 (Residencial)
+EXEC sp_Inmueble_Insertar
+    @direccion_exacta = 'Nicoya Centro, 300m este del Parque Central',
+    @area_terreno = 250.50,
+    @valor_fiscal = 45000000.00,
+    @tipo_uso_inmueble_id = 1,
+    @estado_ocupacional = 'Ocupado';
+
+SET @inmueble1_id = (SELECT TOP 1 inmueble_id FROM Inmueble ORDER BY inmueble_id DESC);
+
+-- Inmueble 2 (Comercial)
+EXEC sp_Inmueble_Insertar
+    @direccion_exacta = 'Nicoya, Calle Principal frente al mercado',
+    @area_terreno = 180.00,
+    @valor_fiscal = 65000000.00,
+    @tipo_uso_inmueble_id = 2,
+    @estado_ocupacional = 'Ocupado';
+
+SET @inmueble2_id = (SELECT TOP 1 inmueble_id FROM Inmueble ORDER BY inmueble_id DESC);
+
+-- Inmueble 3 (Agrícola)
+EXEC sp_Inmueble_Insertar
+    @direccion_exacta = 'Nicoya, San Antonio, sector rural',
+    @area_terreno = 5000.00,
+    @valor_fiscal = 120000000.00,
+    @tipo_uso_inmueble_id = 4,
+    @estado_ocupacional = 'Desocupado';
+
+SET @inmueble3_id = (SELECT TOP 1 inmueble_id FROM Inmueble ORDER BY inmueble_id DESC);
+
+PRINT '✓ Inmuebles insertados';
+PRINT '  - Inmueble 1 ID: ' + CAST(@inmueble1_id AS VARCHAR(10));
+PRINT '  - Inmueble 2 ID: ' + CAST(@inmueble2_id AS VARCHAR(10));
+PRINT '  - Inmueble 3 ID: ' + CAST(@inmueble3_id AS VARCHAR(10));
+GO
+
+-- =============================================
+-- ASOCIAR CONTRIBUYENTES A INMUEBLES
+-- =============================================
+PRINT '';
+PRINT '4. Asociando contribuyentes a inmuebles...';
+GO
+
+-- Declarar variables con TOP 1 para evitar errores de ORDER BY
+DECLARE @contrib1 INT = (SELECT TOP 1 contribuyente_id FROM Contribuyente WHERE tipo_contribuyente = 'Física' ORDER BY contribuyente_id);
+DECLARE @contrib2 INT = (SELECT TOP 1 contribuyente_id FROM Contribuyente WHERE tipo_contribuyente = 'Física' AND contribuyente_id > @contrib1 ORDER BY contribuyente_id);
+DECLARE @contrib3 INT = (SELECT TOP 1 contribuyente_id FROM Contribuyente WHERE tipo_contribuyente = 'Jurídica' ORDER BY contribuyente_id DESC);
+
+DECLARE @inm1 INT = (SELECT TOP 1 inmueble_id FROM Inmueble ORDER BY inmueble_id);
+DECLARE @inm2 INT = (SELECT TOP 1 inmueble_id FROM Inmueble WHERE inmueble_id > @inm1 ORDER BY inmueble_id);
+DECLARE @inm3 INT = (SELECT TOP 1 inmueble_id FROM Inmueble ORDER BY inmueble_id DESC);
+
+-- Asociación 1
+EXEC sp_Inmueble_AsociarContribuyente
+    @contribuyente_id = @contrib1,
+    @inmueble_id = @inm1,
+    @porcentaje_propiedad = 100.00;
+
+-- Asociación 2
+EXEC sp_Inmueble_AsociarContribuyente
+    @contribuyente_id = @contrib2,
+    @inmueble_id = @inm2,
+    @porcentaje_propiedad = 100.00;
+
+-- Asociación 3
+EXEC sp_Inmueble_AsociarContribuyente
+    @contribuyente_id = @contrib3,
+    @inmueble_id = @inm3,
+    @porcentaje_propiedad = 100.00;
+
+PRINT '✓ Asociaciones creadas';
+GO
+
+-- =============================================
+-- INSERTAR CATASTROS
+-- =============================================
+PRINT '';
+PRINT '5. Insertando catastros...';
+GO
+
+DECLARE @inm1 INT = (SELECT TOP 1 inmueble_id FROM Inmueble ORDER BY inmueble_id);
+DECLARE @inm2 INT = (SELECT TOP 1 inmueble_id FROM Inmueble WHERE inmueble_id > @inm1 ORDER BY inmueble_id);
+DECLARE @catastro1_id INT;
+DECLARE @catastro2_id INT;
+
+-- Catastro Inmueble 1
+EXEC sp_Catastro_Insertar
+    @numero_plano_catastral = 'G-1234567-2024',
+    @area_catastral = '250.50 m² - Zona Urbana Nicoya Centro',
+    @fecha_inscripcion = '2024-01-15',
+    @estado = 'Activo',
+    @inmueble_id = @inm1;
+
+SET @catastro1_id = (SELECT TOP 1 catastro_id FROM Catastro ORDER BY catastro_id DESC);
+
+-- Catastro Inmueble 2
+EXEC sp_Catastro_Insertar
+    @numero_plano_catastral = 'G-2345678-2024',
+    @area_catastral = '180.00 m² - Zona Comercial Centro',
+    @fecha_inscripcion = '2024-02-20',
+    @estado = 'Activo',
+    @inmueble_id = @inm2;
+
+SET @catastro2_id = (SELECT TOP 1 catastro_id FROM Catastro ORDER BY catastro_id DESC);
+
+PRINT '✓ Catastros insertados';
+PRINT '  - Catastro 1 ID: ' + CAST(@catastro1_id AS VARCHAR(10));
+PRINT '  - Catastro 2 ID: ' + CAST(@catastro2_id AS VARCHAR(10));
+GO
+
+-- =============================================
+-- INSERTAR COLINDANCIAS
+-- =============================================
+PRINT '';
+PRINT '6. Insertando colindancias...';
+GO
+
+DECLARE @cat1 INT = (SELECT TOP 1 catastro_id FROM Catastro ORDER BY catastro_id);
 
 EXEC sp_Colindancia_Insertar
     @punto_cardinal = 'Norte',
-    @colindante = 'Propiedad de Juan Pérez',
-    @catastro_id = @catastro_id;
+    @colindante = 'Propiedad de Juan Ramírez',
+    @catastro_id = @cat1;
 
 EXEC sp_Colindancia_Insertar
     @punto_cardinal = 'Sur',
-    @colindante = 'Calle Pública',
-    @catastro_id = @catastro_id;
+    @colindante = 'Calle Pública Principal',
+    @catastro_id = @cat1;
 
 EXEC sp_Colindancia_Insertar
     @punto_cardinal = 'Este',
-    @colindante = 'Propiedad de María González',
-    @catastro_id = @catastro_id;
+    @colindante = 'Propiedad de Ana Mora',
+    @catastro_id = @cat1;
 
 EXEC sp_Colindancia_Insertar
     @punto_cardinal = 'Oeste',
-    @colindante = 'Río Tempisque',
-    @catastro_id = @catastro_id;
+    @colindante = 'Parque Central de Nicoya',
+    @catastro_id = @cat1;
 
-PRINT 'Colindancias insertadas correctamente';
+PRINT '✓ Colindancias insertadas';
 GO
 
 -- =============================================
--- 3. INSERTAR OBSERVACIONES
+-- INSERTAR OBSERVACIONES
 -- =============================================
 PRINT '';
-PRINT '3. Insertando observaciones...';
+PRINT '7. Insertando observaciones...';
 GO
 
-DECLARE @inmueble_id INT = 1;
-DECLARE @catastro_id INT = (SELECT TOP 1 catastro_id FROM Catastro ORDER BY catastro_id DESC);
+DECLARE @inm1 INT = (SELECT TOP 1 inmueble_id FROM Inmueble ORDER BY inmueble_id);
+DECLARE @inm2 INT = (SELECT TOP 1 inmueble_id FROM Inmueble WHERE inmueble_id > @inm1 ORDER BY inmueble_id);
 
+-- Observaciones Inmueble 1
 EXEC sp_ObservacionInmueble_Insertar
     @descripcion = 'Inmueble en excelente estado de conservación',
-    @inmueble_id = @inmueble_id,
-    @catastro_id = @catastro_id;
+    @inmueble_id = @inm1;
 
 EXEC sp_ObservacionInmueble_Insertar
     @descripcion = 'Requiere actualización de avalúo fiscal',
-    @inmueble_id = @inmueble_id,
-    @catastro_id = @catastro_id;
+    @inmueble_id = @inm1;
 
-PRINT 'Observaciones insertadas correctamente';
+EXEC sp_ObservacionInmueble_Insertar
+    @descripcion = 'Pendiente revisión de linderos con vecino norte',
+    @inmueble_id = @inm1,
+    @fecha = '2024-09-15';
+
+-- Observaciones Inmueble 2
+EXEC sp_ObservacionInmueble_Insertar
+    @descripcion = 'Local comercial bien ubicado, alta afluencia',
+    @inmueble_id = @inm2;
+
+PRINT '✓ Observaciones insertadas';
 GO
+
+-- =============================================
+-- PRUEBAS DE CONSULTA
+-- =============================================
+PRINT '';
+PRINT '========================================';
+PRINT 'EJECUTANDO PRUEBAS DE CONSULTA';
+PRINT '========================================';
+GO
+
+-- Test 1
+PRINT '';
+PRINT 'Test 1: Listar todos los contribuyentes';
+EXEC sp_Contribuyente_ListarTodos;
+GO
+
+-- Test 2
+PRINT '';
+PRINT 'Test 2: Listar todos los inmuebles';
+EXEC sp_Inmueble_ListarTodos;
+GO
+
+-- Test 3
+PRINT '';
+PRINT 'Test 3: Consultar inmueble por ID (con propietarios)';
+DECLARE @inm INT = (SELECT TOP 1 inmueble_id FROM Inmueble ORDER BY inmueble_id);
+EXEC sp_Inmueble_ConsultarPorID @inmueble_id = @inm;
+GO
+
+-- Test 4
+PRINT '';
+PRINT 'Test 4: Listar todos los catastros';
+EXEC sp_Catastro_ListarTodos;
+GO
+
+-- Test 5
+PRINT '';
+PRINT 'Test 5: Consultar catastro completo (con colindancias y observaciones)';
+DECLARE @cat INT = (SELECT TOP 1 catastro_id FROM Catastro ORDER BY catastro_id);
+EXEC sp_Catastro_ConsultarCompleto @catastro_id = @cat;
+GO
+
+-- Test 6
+PRINT '';
+PRINT 'Test 6: Listar observaciones por inmueble';
+DECLARE @inm INT = (SELECT TOP 1 inmueble_id FROM Inmueble ORDER BY inmueble_id);
+EXEC sp_ObservacionInmueble_ListarPorInmueble @inmueble_id = @inm;
+GO
+
+-- Test 7
+PRINT '';
+PRINT 'Test 7: Listar observaciones con información de catastro';
+DECLARE @inm INT = (SELECT TOP 1 inmueble_id FROM Inmueble ORDER BY inmueble_id);
+EXEC sp_ObservacionInmueble_ListarConCatastro @inmueble_id = @inm;
+GO
+
+-- Test 8
+PRINT '';
+PRINT 'Test 8: Listar observaciones proporcionando catastro_id';
+DECLARE @cat INT = (SELECT TOP 1 catastro_id FROM Catastro ORDER BY catastro_id);
+EXEC sp_ObservacionInmueble_ListarConCatastro @catastro_id = @cat;
+GO
+
+PRINT '';
+PRINT '========================================';
+PRINT '✓ TODAS LAS PRUEBAS COMPLETADAS';
+PRINT '========================================';
+PRINT 'Resumen:';
+PRINT '  - Contribuyentes creados y listados';
+PRINT '  - Inmuebles creados y asociados';
+PRINT '  - Catastros registrados';
+PRINT '  - Colindancias definidas';
+PRINT '  - Observaciones registradas';
+PRINT '  - Consultas verificadas';
+PRINT '========================================';
+GO
+

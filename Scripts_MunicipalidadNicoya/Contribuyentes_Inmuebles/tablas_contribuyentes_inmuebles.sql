@@ -235,7 +235,7 @@ CREATE TABLE dbo.Colindancias
         FOREIGN KEY (catastro_id) REFERENCES dbo.Catastro(catastro_id)
         ON DELETE CASCADE,
     CONSTRAINT CK_Colindancias_PuntoCardinal 
-        CHECK (punto_cardinal IN ('Norte', 'Sur', 'Este', 'Oeste', 'Noreste', 'Noroeste', 'Sureste', 'Suroeste'))
+        CHECK (punto_cardinal IN ('Norte', 'Sur', 'Este', 'Oeste'))
 );
 GO
 
@@ -254,20 +254,19 @@ CREATE TABLE dbo.ObservacionInmueble
     fecha DATE NOT NULL DEFAULT CAST(GETDATE() AS DATE),
     descripcion VARCHAR(300) NOT NULL,
     inmueble_id INT NOT NULL,
-    catastro_id INT NULL,
+    
     
     CONSTRAINT PK_ObservacionInmueble PRIMARY KEY (observacion_inmueble_id),
     CONSTRAINT FK_ObservacionInmueble_Inmueble 
         FOREIGN KEY (inmueble_id) REFERENCES dbo.Inmueble(inmueble_id)
         ON DELETE CASCADE,
-    CONSTRAINT FK_ObservacionInmueble_Catastro 
-        FOREIGN KEY (catastro_id) REFERENCES dbo.Catastro(catastro_id)
-        ON DELETE NO ACTION
+    CONSTRAINT CK_ObservacionInmueble_Descripcion 
+        CHECK (LEN(TRIM(descripcion)) > 0)
+   
 );
 GO
 
 CREATE INDEX IX_ObservacionInmueble_Inmueble ON dbo.ObservacionInmueble(inmueble_id);
-CREATE INDEX IX_ObservacionInmueble_Catastro ON dbo.ObservacionInmueble(catastro_id);
 GO
 
 PRINT '✓ Tabla ObservacionInmueble creada';
