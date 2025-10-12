@@ -74,6 +74,47 @@ GO
 PRINT '✓ Tabla Tramite creada';
 GO
 
+-- =============================================
+-- TABLA: Requisito
+-- =============================================
+use MunicipalidadNicoya
+go
+CREATE TABLE Requisito
+(
+	requisito_id int identity(1,1) NOT NULL,
+	nombre varchar(50) NOT NULL,
+	descripcion varchar(255) NOT NULL,
+
+	CONSTRAINT PK_Requisito PRIMARY KEY (requisito_id)
+)
+GO
+
+PRINT '✓ Tabla Requisito creada';
+GO
+
+-- =============================================
+-- TABLA: Tipo_Tramite_Requisito
+-- =============================================
+CREATE TABLE Tipo_Tramite_Requisito
+(
+	tipo_tramite_requisito_id int identity(1,1) NOT NULL,
+	tipo_tramite_id int NOT NULL,
+	requisito_id int NOT NULL,
+
+	--PK
+	CONSTRAINT PK_Tramite_Requisito PRIMARY KEY (tipo_tramite_requisito_id),
+
+	--FKs
+	CONSTRAINT FK_TipoTramiteRequisito_TipoTramite
+		FOREIGN KEY (tipo_tramite_id) REFERENCES Tipo_Tramite(tipo_tramite_id),
+	CONSTRAINT FK_TipoTramiteRequisito_Requisito
+		FOREIGN KEY (requisito_id) REFERENCES Requisito(requisito_id)
+)
+GO
+
+PRINT '✓ Tabla Tipo_Tramite_Requisito creada';
+GO
+
 PRINT '';
 PRINT '========================================';
 PRINT '✓ MÓDULO TRÁMITES Y PERMISOS';
