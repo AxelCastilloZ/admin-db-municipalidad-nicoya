@@ -68,8 +68,9 @@ BEGIN
     END CATCH
 END;
 GO
-
--- SP: Insertar Contribuyente Jurídico
+-- =============================================
+-- SP: Insertar Contribuyente Jurídico (CORREGIDO)
+-- =============================================
 IF OBJECT_ID('sp_Contribuyente_InsertarJuridico', 'P') IS NOT NULL
     DROP PROCEDURE sp_Contribuyente_InsertarJuridico;
 GO
@@ -77,7 +78,7 @@ GO
 CREATE PROCEDURE sp_Contribuyente_InsertarJuridico
     @cedula_juridica VARCHAR(50),
     @nombre_empresa VARCHAR(50),
-    @representante_legal_id INT,
+    @representante_legal_id INT,  -- Este es el contribuyente_id del físico
     @telefono VARCHAR(20) = NULL,
     @email VARCHAR(100) = NULL,
     @direccion VARCHAR(255) = NULL
@@ -86,21 +87,25 @@ BEGIN
     SET NOCOUNT ON;
     
     DECLARE @contribuyente_id INT;
+    DECLARE @contribuyentes_fisicos_id INT;
     DECLARE @ErrorMessage NVARCHAR(4000);
     
     BEGIN TRY
         -- Validar que la cédula jurídica no exista
         IF EXISTS (SELECT 1 FROM Contribuyente_juridico WHERE cedula_juridica = @cedula_juridica)
         BEGIN
-            RAISERROR('La cédula jurídica ya está registrada', 16, 1);
-            RETURN;
+            THROW 50001, 'La cédula jurídica ya está registrada', 1;
         END
         
+        -- CORRECCIÓN: Buscar el contribuyentes_fisicos_id a partir del contribuyente_id
+        SELECT @contribuyentes_fisicos_id = contribuyentes_fisicos_id
+        FROM Contribuyente_fisico
+        WHERE contribuyente_id = @representante_legal_id;
+        
         -- Validar que el representante legal exista
-        IF NOT EXISTS (SELECT 1 FROM Contribuyente_fisico WHERE contribuyentes_fisicos_id = @representante_legal_id)
+        IF @contribuyentes_fisicos_id IS NULL
         BEGIN
-            RAISERROR('El representante legal no existe', 16, 1);
-            RETURN;
+            THROW 50002, 'El representante legal no existe', 1;
         END
         
         BEGIN TRANSACTION;
@@ -112,9 +117,19 @@ BEGIN
         -- Obtener el ID generado
         SET @contribuyente_id = SCOPE_IDENTITY();
         
-        -- Insertar en tabla hija Contribuyente_juridico
-        INSERT INTO Contribuyente_juridico (contribuyente_id, cedula_juridica, nombre_empresa, representante_legal_id)
-        VALUES (@contribuyente_id, @cedula_juridica, @nombre_empresa, @representante_legal_id);
+        -- Insertar usando el contribuyentes_fisicos_id correcto
+        INSERT INTO Contribuyente_juridico (
+            contribuyente_id, 
+            cedula_juridica, 
+            nombre_empresa, 
+            representante_legal_id
+        )
+        VALUES (
+            @contribuyente_id, 
+            @cedula_juridica, 
+            @nombre_empresa, 
+            @contribuyentes_fisicos_id  -- ✅ Usar el ID de la tabla física
+        );
         
         COMMIT TRANSACTION;
         
@@ -128,9 +143,11 @@ BEGIN
         
         SET @ErrorMessage = ERROR_MESSAGE();
         RAISERROR(@ErrorMessage, 16, 1);
-        RETURN;
     END CATCH
 END;
+GO
+
+PRINT '✓ SP sp_Contribuyente_InsertarJuridico corregido';
 GO
 
 -- SP: Consultar Contribuyente Completo
@@ -198,6 +215,210 @@ BEGIN
     LEFT JOIN Contribuyente_juridico cj ON c.contribuyente_id = cj.contribuyente_id
     ORDER BY c.contribuyente_id DESC;
 END;
+GO
+
+-- =============================================
+-- SP: Actualizar Contribuyente Físico
+-- =============================================
+IF OBJECT_ID('sp_Contribuyente_ActualizarFisico', 'P') IS NOT NULL
+    DROP PROCEDURE sp_Contribuyente_ActualizarFisico;
+GO
+
+CREATE PROCEDURE sp_Contribuyente_ActualizarFisico
+    @contribuyente_id INT,
+    @cedula VARCHAR(20),
+    @nombre VARCHAR(50),
+    @apellido1 VARCHAR(50),
+    @apellido2 VARCHAR(50),
+    @telefono VARCHAR(20) = NULL,
+    @email VARCHAR(100) = NULL,
+    @direccion VARCHAR(255) = NULL
+AS
+BEGIN
+    SET NOCOUNT ON;
+    
+    DECLARE @ErrorMessage NVARCHAR(4000);
+    DECLARE @RowsAffected INT = 0;
+    
+    BEGIN TRY
+        -- Validar que el contribuyente existe y es físico
+        IF NOT EXISTS (
+            SELECT 1 
+            FROM Contribuyente c
+            INNER JOIN Contribuyente_fisico cf ON c.contribuyente_id = cf.contribuyente_id
+            WHERE c.contribuyente_id = @contribuyente_id
+        )
+        BEGIN
+            THROW 50001, 'El contribuyente físico no existe', 1;
+        END
+        
+        -- Validar que la cédula no esté duplicada (excluyendo el actual)
+        IF EXISTS (
+            SELECT 1 
+            FROM Contribuyente_fisico 
+            WHERE cedula = @cedula 
+            AND contribuyente_id <> @contribuyente_id
+        )
+        BEGIN
+            THROW 50002, 'La cédula ya está registrada para otro contribuyente', 1;
+        END
+        
+        -- Validar formato de email si se proporciona
+        IF @email IS NOT NULL AND @email NOT LIKE '%@%.%'
+        BEGIN
+            THROW 50003, 'El formato del email es inválido', 1;
+        END
+        
+        BEGIN TRANSACTION;
+        
+        -- Actualizar tabla padre Contribuyente
+        UPDATE Contribuyente
+        SET 
+            telefono = @telefono,
+            email = @email,
+            direccion = @direccion
+        WHERE contribuyente_id = @contribuyente_id;
+        
+        SET @RowsAffected = @@ROWCOUNT;
+        
+        -- Actualizar tabla hija Contribuyente_fisico
+        UPDATE Contribuyente_fisico
+        SET 
+            cedula = @cedula,
+            nombre = @nombre,
+            apellido1 = @apellido1,
+            apellido2 = @apellido2
+        WHERE contribuyente_id = @contribuyente_id;
+        
+        SET @RowsAffected = @RowsAffected + @@ROWCOUNT;
+        
+        COMMIT TRANSACTION;
+        
+        -- Retornar resultado de éxito
+        SELECT 
+            @RowsAffected AS RowsAffected, 
+            'SUCCESS' AS Status,
+            @contribuyente_id AS contribuyente_id;
+        
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+        
+        SET @ErrorMessage = ERROR_MESSAGE();
+        RAISERROR(@ErrorMessage, 16, 1);
+        RETURN;
+    END CATCH
+END;
+GO
+
+PRINT '✓ SP sp_Contribuyente_ActualizarFisico creado exitosamente';
+GO
+
+
+-- =============================================
+-- SP: Actualizar Contribuyente Jurídico 
+-- =============================================
+IF OBJECT_ID('sp_Contribuyente_ActualizarJuridico', 'P') IS NOT NULL
+    DROP PROCEDURE sp_Contribuyente_ActualizarJuridico;
+GO
+
+CREATE PROCEDURE sp_Contribuyente_ActualizarJuridico
+    @contribuyente_id INT,
+    @cedula_juridica VARCHAR(50),
+    @nombre_empresa VARCHAR(50),
+    @representante_legal_id INT,  -- Este es el contribuyente_id del físico
+    @telefono VARCHAR(20) = NULL,
+    @email VARCHAR(100) = NULL,
+    @direccion VARCHAR(255) = NULL
+AS
+BEGIN
+    SET NOCOUNT ON;
+    
+    DECLARE @ErrorMessage NVARCHAR(4000);
+    DECLARE @RowsAffected INT = 0;
+    DECLARE @contribuyentes_fisicos_id INT;
+    
+    BEGIN TRY
+        -- Validar que el contribuyente existe y es jurídico
+        IF NOT EXISTS (
+            SELECT 1 
+            FROM Contribuyente c
+            INNER JOIN Contribuyente_juridico cj ON c.contribuyente_id = cj.contribuyente_id
+            WHERE c.contribuyente_id = @contribuyente_id
+        )
+        BEGIN
+            THROW 50001, 'El contribuyente jurídico no existe', 1;
+        END
+        
+        -- Validar que la cédula jurídica no esté duplicada (excluyendo el actual)
+        IF EXISTS (
+            SELECT 1 
+            FROM Contribuyente_juridico 
+            WHERE cedula_juridica = @cedula_juridica 
+            AND contribuyente_id <> @contribuyente_id
+        )
+        BEGIN
+            THROW 50002, 'La cédula jurídica ya está registrada para otro contribuyente', 1;
+        END
+        
+        SELECT @contribuyentes_fisicos_id = contribuyentes_fisicos_id
+        FROM Contribuyente_fisico
+        WHERE contribuyente_id = @representante_legal_id;
+        
+        -- Validar que el representante legal existe
+        IF @contribuyentes_fisicos_id IS NULL
+        BEGIN
+            THROW 50003, 'El representante legal no existe', 1;
+        END
+        
+        -- Validar formato de email si se proporciona
+        IF @email IS NOT NULL AND @email NOT LIKE '%@%.%'
+        BEGIN
+            THROW 50004, 'El formato del email es inválido', 1;
+        END
+        
+        BEGIN TRANSACTION;
+        
+        -- Actualizar tabla padre Contribuyente
+        UPDATE Contribuyente
+        SET 
+            telefono = @telefono,
+            email = @email,
+            direccion = @direccion
+        WHERE contribuyente_id = @contribuyente_id;
+        
+        SET @RowsAffected = @@ROWCOUNT;
+        
+        UPDATE Contribuyente_juridico
+        SET 
+            cedula_juridica = @cedula_juridica,
+            nombre_empresa = @nombre_empresa,
+            representante_legal_id = @contribuyentes_fisicos_id  
+        WHERE contribuyente_id = @contribuyente_id;
+        
+        SET @RowsAffected = @RowsAffected + @@ROWCOUNT;
+        
+        COMMIT TRANSACTION;
+        
+        -- Retornar resultado de éxito
+        SELECT 
+            @RowsAffected AS RowsAffected, 
+            'SUCCESS' AS Status,
+            @contribuyente_id AS contribuyente_id;
+        
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+        
+        SET @ErrorMessage = ERROR_MESSAGE();
+        RAISERROR(@ErrorMessage, 16, 1);
+    END CATCH
+END;
+GO
+
+PRINT '✓ SP sp_Contribuyente_ActualizarJuridico corregido';
 GO
 
 -- SP: Eliminar Contribuyente
@@ -500,55 +721,63 @@ END;
 GO
 
 -- SP: Actualizar Inmueble
-IF OBJECT_ID('sp_Inmueble_Actualizar', 'P') IS NOT NULL
-    DROP PROCEDURE sp_Inmueble_Actualizar;
+-- SP: Actualizar Catastro (CORREGIDO)
+IF OBJECT_ID('sp_Catastro_Actualizar', 'P') IS NOT NULL
+    DROP PROCEDURE sp_Catastro_Actualizar;
 GO
 
-CREATE PROCEDURE sp_Inmueble_Actualizar
-    @inmueble_id INT,
-    @direccion_exacta VARCHAR(255),
-    @area_terreno DECIMAL(10,2),
-    @valor_fiscal DECIMAL(18,2),
-    @tipo_uso_inmueble_id INT,
-    @estado_ocupacional VARCHAR(50) = NULL
+CREATE PROCEDURE sp_Catastro_Actualizar
+    @catastro_id INT,
+    @numero_plano_catastral VARCHAR(50),
+    @area_catastral VARCHAR(100) = NULL,
+    @fecha_inscripcion DATE,
+    @estado VARCHAR(20)
 AS
 BEGIN
     SET NOCOUNT ON;
     
+    DECLARE @RowsAffected INT;
+    
     BEGIN TRY
-        IF NOT EXISTS (SELECT 1 FROM Inmueble WHERE inmueble_id = @inmueble_id)
+        -- Validar que el catastro existe
+        IF NOT EXISTS (SELECT 1 FROM Catastro WHERE catastro_id = @catastro_id)
         BEGIN
-            THROW 50001, 'El inmueble no existe', 1;
+            THROW 50001, 'El catastro no existe', 1;
         END
         
-        IF @area_terreno <= 0
+        -- Validar número de plano duplicado (excluyendo el actual)
+        IF EXISTS (
+            SELECT 1 FROM Catastro 
+            WHERE numero_plano_catastral = @numero_plano_catastral 
+            AND catastro_id <> @catastro_id
+        )
         BEGIN
-            THROW 50002, 'El área del terreno debe ser mayor a 0', 1;
+            THROW 50002, 'El número de plano catastral ya está registrado', 1;
         END
         
-        IF @valor_fiscal < 0
+        -- Validar estado
+        IF @estado NOT IN ('Activo', 'Inactivo', 'En Revisión')
         BEGIN
-            THROW 50003, 'El valor fiscal no puede ser negativo', 1;
-        END
-        
-        IF NOT EXISTS (SELECT 1 FROM TipoUsoInmueble WHERE tipo_uso_inmueble_id = @tipo_uso_inmueble_id)
-        BEGIN
-            THROW 50004, 'El tipo de uso de inmueble no existe', 1;
+            THROW 50003, 'Estado inválido', 1;
         END
         
         BEGIN TRANSACTION;
         
-        UPDATE Inmueble
+        UPDATE Catastro
         SET 
-            direccion_exacta = @direccion_exacta,
-            area_terreno = @area_terreno,
-            valor_fiscal = @valor_fiscal,
-            tipo_uso_inmueble_id = @tipo_uso_inmueble_id,
-            estado_ocupacional = @estado_ocupacional
-        WHERE inmueble_id = @inmueble_id;
+            numero_plano_catastral = @numero_plano_catastral,
+            area_catastral = @area_catastral,
+            fecha_inscripcion = @fecha_inscripcion,
+            estado = @estado
+        WHERE catastro_id = @catastro_id;
+        
+        -- ✅ SOLUCIÓN: Capturar y retornar las filas afectadas
+        SET @RowsAffected = @@ROWCOUNT;
         
         COMMIT TRANSACTION;
         
+        -- ✅ Retornar el resultado (consistente con sp_Inmueble_Actualizar)
+        SELECT @RowsAffected AS RowsAffected, 'SUCCESS' AS Status;
         
     END TRY
     BEGIN CATCH
@@ -557,6 +786,9 @@ BEGIN
         THROW;
     END CATCH
 END;
+GO
+
+PRINT '✓ SP sp_Catastro_Actualizar corregido con retorno de resultado';
 GO
 
 -- SP: Eliminar Inmueble
