@@ -150,7 +150,9 @@ GO
 PRINT '✓ SP sp_Contribuyente_InsertarJuridico corregido';
 GO
 
--- SP: Consultar Contribuyente Completo
+-- =============================================
+-- SP MODIFICADO: sp_Contribuyente_ConsultarCompleto
+-- =============================================
 IF OBJECT_ID('sp_Contribuyente_ConsultarCompleto', 'P') IS NOT NULL
     DROP PROCEDURE sp_Contribuyente_ConsultarCompleto;
 GO
@@ -163,7 +165,7 @@ BEGIN
     
     SELECT 
         c.contribuyente_id,
-        c.tipo_contribuyente,
+        c.tipo_contribuyente AS tipo,
         c.telefono,
         c.email,
         c.direccion,
@@ -177,15 +179,23 @@ BEGIN
         cj.contribuyentes_fisicos_id AS contribuyente_juridico_id,
         cj.cedula_juridica,
         cj.nombre_empresa,
-        cj.representante_legal_id
+        cj.representante_legal_id,
+        -- ✅ NUEVO: Datos del representante legal
+        rep.cedula AS representante_legal_cedula,
+        rep.nombre AS representante_legal_nombre,
+        rep.apellido1 AS representante_legal_apellido1,
+        rep.apellido2 AS representante_legal_apellido2
     FROM Contribuyente c
     LEFT JOIN Contribuyente_fisico cf ON c.contribuyente_id = cf.contribuyente_id
     LEFT JOIN Contribuyente_juridico cj ON c.contribuyente_id = cj.contribuyente_id
+    LEFT JOIN Contribuyente_fisico rep ON cj.representante_legal_id = rep.contribuyentes_fisicos_id
     WHERE c.contribuyente_id = @contribuyente_id;
 END;
 GO
 
--- SP: Listar Todos los Contribuyentes
+-- =============================================
+-- SP MODIFICADO: sp_Contribuyente_ListarTodos
+-- =============================================
 IF OBJECT_ID('sp_Contribuyente_ListarTodos', 'P') IS NOT NULL
     DROP PROCEDURE sp_Contribuyente_ListarTodos;
 GO
@@ -197,24 +207,35 @@ BEGIN
     
     SELECT 
         c.contribuyente_id,
-        c.tipo_contribuyente,
+        c.tipo_contribuyente AS tipo,
         c.telefono,
         c.email,
         c.direccion,
         -- Datos de persona física
+        cf.contribuyentes_fisicos_id,
         cf.cedula,
         cf.nombre,
         cf.apellido1,
         cf.apellido2,
         -- Datos de persona jurídica
+        cj.contribuyentes_fisicos_id AS contribuyente_juridico_id,
         cj.cedula_juridica,
         cj.nombre_empresa,
-        cj.representante_legal_id
+        cj.representante_legal_id,
+        -- ✅ NUEVO: Datos del representante legal
+        rep.cedula AS representante_legal_cedula,
+        rep.nombre AS representante_legal_nombre,
+        rep.apellido1 AS representante_legal_apellido1,
+        rep.apellido2 AS representante_legal_apellido2
     FROM Contribuyente c
     LEFT JOIN Contribuyente_fisico cf ON c.contribuyente_id = cf.contribuyente_id
     LEFT JOIN Contribuyente_juridico cj ON c.contribuyente_id = cj.contribuyente_id
+    LEFT JOIN Contribuyente_fisico rep ON cj.representante_legal_id = rep.contribuyentes_fisicos_id
     ORDER BY c.contribuyente_id DESC;
 END;
+GO
+
+PRINT '✓ SPs modificados con datos del representante legal';
 GO
 
 -- =============================================
@@ -709,6 +730,7 @@ BEGIN
         i.estado_ocupacional,
         i.tipo_uso_inmueble_id,
         t.nombre_uso AS tipo_uso_nombre,
+        t.descripcion AS tipo_uso_descripcion, 
         i.fecha_registro,
         ci.porcentaje_propiedad,
         ci.fecha_registro AS fecha_asociacion
@@ -1789,12 +1811,12 @@ EXEC sp_Contribuyente_InsertarFisico
 SET @contribuyente2_id = (SELECT TOP 1 contribuyente_id FROM Contribuyente ORDER BY contribuyente_id DESC);
 
 -- Contribuyente Jurídico
-DECLARE @representante_id INT = (SELECT contribuyentes_fisicos_id FROM Contribuyente_fisico WHERE contribuyente_id = @contribuyente2_id);
 
+-- ✅ CORRECTO
 EXEC sp_Contribuyente_InsertarJuridico
     @cedula_juridica = '3-101-234567',
     @nombre_empresa = 'Nicoya Desarrollos S.A.',
-    @representante_legal_id = @representante_id,
+    @representante_legal_id = @contribuyente2_id,
     @telefono = '2685-9999',
     @email = 'info@nicoyadesarrollos.cr',
     @direccion = 'Nicoya, Zona Industrial';

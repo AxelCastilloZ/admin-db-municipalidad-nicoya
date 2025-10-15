@@ -7,6 +7,101 @@
 USE MunicipalidadNicoya;
 GO
 
+
+-- Eliminar en orden: de tablas dependientes a independientes
+DELETE FROM dbo.Tramite;
+DELETE FROM dbo.ObservacionInmueble;
+DELETE FROM dbo.Colindancias;
+DELETE FROM dbo.Catastro;
+DELETE FROM dbo.Contribuyente_Inmueble;
+DELETE FROM dbo.Contribuyente_juridico;
+DELETE FROM dbo.Contribuyente_fisico;
+DELETE FROM dbo.Inmueble;
+DELETE FROM dbo.TipoUsoInmueble;
+DELETE FROM dbo.Contribuyente;
+GO
+
+PRINT '✓ Todos los registros eliminados';
+GO
+
+
+
+
+
+-- =============================================
+-- ELIMINAR RESTRICCIONES FK ANTES DE DROP
+-- =============================================
+
+-- FK externas (desde Tramite)
+IF EXISTS (SELECT * FROM sys.foreign_keys WHERE name = 'FK_Tramite_Inmueble')
+    ALTER TABLE dbo.Tramite DROP CONSTRAINT FK_Tramite_Inmueble;
+
+IF EXISTS (SELECT * FROM sys.foreign_keys WHERE name = 'FK_Tramite_Contribuyente')
+    ALTER TABLE dbo.Tramite DROP CONSTRAINT FK_Tramite_Contribuyente;
+
+-- FK internas
+IF EXISTS (SELECT * FROM sys.foreign_keys WHERE name = 'FK_ObservacionInmueble_Inmueble')
+    ALTER TABLE dbo.ObservacionInmueble DROP CONSTRAINT FK_ObservacionInmueble_Inmueble;
+
+IF EXISTS (SELECT * FROM sys.foreign_keys WHERE name = 'FK_Colindancias_Catastro')
+    ALTER TABLE dbo.Colindancias DROP CONSTRAINT FK_Colindancias_Catastro;
+
+IF EXISTS (SELECT * FROM sys.foreign_keys WHERE name = 'FK_Catastro_Inmueble')
+    ALTER TABLE dbo.Catastro DROP CONSTRAINT FK_Catastro_Inmueble;
+
+IF EXISTS (SELECT * FROM sys.foreign_keys WHERE name = 'FK_Contribuyente_Inmueble_Contribuyente')
+    ALTER TABLE dbo.Contribuyente_Inmueble DROP CONSTRAINT FK_Contribuyente_Inmueble_Contribuyente;
+
+IF EXISTS (SELECT * FROM sys.foreign_keys WHERE name = 'FK_Contribuyente_Inmueble_Inmueble')
+    ALTER TABLE dbo.Contribuyente_Inmueble DROP CONSTRAINT FK_Contribuyente_Inmueble_Inmueble;
+
+IF EXISTS (SELECT * FROM sys.foreign_keys WHERE name = 'FK_Inmueble_TipoUsoInmueble')
+    ALTER TABLE dbo.Inmueble DROP CONSTRAINT FK_Inmueble_TipoUsoInmueble;
+
+IF EXISTS (SELECT * FROM sys.foreign_keys WHERE name = 'FK_Contribuyente_juridico_Contribuyente')
+    ALTER TABLE dbo.Contribuyente_juridico DROP CONSTRAINT FK_Contribuyente_juridico_Contribuyente;
+
+IF EXISTS (SELECT * FROM sys.foreign_keys WHERE name = 'FK_Contribuyente_juridico_Representante')
+    ALTER TABLE dbo.Contribuyente_juridico DROP CONSTRAINT FK_Contribuyente_juridico_Representante;
+
+IF EXISTS (SELECT * FROM sys.foreign_keys WHERE name = 'FK_Contribuyente_fisico_Contribuyente')
+    ALTER TABLE dbo.Contribuyente_fisico DROP CONSTRAINT FK_Contribuyente_fisico_Contribuyente;
+
+-- Índices
+IF EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_ObservacionInmueble_Inmueble')
+    DROP INDEX IX_ObservacionInmueble_Inmueble ON dbo.ObservacionInmueble;
+
+IF EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_Colindancias_Catastro')
+    DROP INDEX IX_Colindancias_Catastro ON dbo.Colindancias;
+
+IF EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_Catastro_Inmueble')
+    DROP INDEX IX_Catastro_Inmueble ON dbo.Catastro;
+GO
+
+PRINT '✓ Restricciones e índices eliminados';
+GO
+
+
+
+
+-- =============================================
+-- ELIMINAR TABLAS ADICIONALES
+-- =============================================
+
+IF OBJECT_ID('dbo.ObservacionInmueble', 'U') IS NOT NULL
+    DROP TABLE dbo.ObservacionInmueble;
+GO
+
+IF OBJECT_ID('dbo.Colindancias', 'U') IS NOT NULL
+    DROP TABLE dbo.Colindancias;
+GO
+
+IF OBJECT_ID('dbo.Catastro', 'U') IS NOT NULL
+    DROP TABLE dbo.Catastro;
+GO
+
+
+
 IF OBJECT_ID('dbo.Contribuyente_Inmueble', 'U') IS NOT NULL
     DROP TABLE dbo.Contribuyente_Inmueble;
 GO
