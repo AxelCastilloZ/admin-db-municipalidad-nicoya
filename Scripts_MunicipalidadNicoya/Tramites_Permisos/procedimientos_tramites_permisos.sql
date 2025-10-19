@@ -30,6 +30,22 @@ FROM Valores v
 LEFT JOIN dbo.Tipo_Tramite t ON t.nombre_tipo = v.nombre_tipo
 WHERE t.tipo_tramite_id IS NULL;
 
+/* ===========================================================
+   1) Agregar NUEVOS tipos de trámite (idempotente)
+   =========================================================== */
+;WITH Valores(nombre_tipo) AS (
+    SELECT 'Permiso para Transporte de Materiales' UNION ALL
+    SELECT 'Permiso para Venta de Alcohol'
+)
+INSERT INTO dbo.Tipo_Tramite (nombre_tipo)
+SELECT v.nombre_tipo
+FROM Valores v
+LEFT JOIN dbo.Tipo_Tramite t ON t.nombre_tipo = v.nombre_tipo
+WHERE t.tipo_tramite_id IS NULL;
+
+select * from Tipo_Tramite
+go
+
 -- SP: Consultar Tipo_Tramite por ID
 IF OBJECT_ID('sp_TipoTramite_ConsultarPorID', 'P') IS NOT NULL
     DROP PROCEDURE sp_TipoTramite_ConsultarPorID;
@@ -100,80 +116,53 @@ GO
 IF OBJECT_ID('sp_Tramite_Insertar', 'P') IS NOT NULL
     DROP PROCEDURE sp_Tramite_Insertar;
 GO
-
 CREATE PROCEDURE sp_Tramite_Insertar
-    @fecha_ingreso DATE,
+    @fecha_ingreso   DATE,
     @fecha_resolucion DATE = NULL,
-    @observaciones VARCHAR(255) = NULL,
+    @observaciones   VARCHAR(255) = NULL,
     @tipo_tramite_id INT,
     @contribuyente_id INT,
-    @inmueble_id INT,
-    @estado_actual VARCHAR(20) = 'En Proceso'
+    @inmueble_id     INT = NULL,                -- <- AHORA OPCIONAL
+    @estado_actual   VARCHAR(20) = 'En Proceso'
 AS
 BEGIN
     SET NOCOUNT ON;
-    
     BEGIN TRY
-        -- Validar estado
+        -- Estado válido
         IF @estado_actual NOT IN ('En Proceso','Aprobado','Rechazado','Finalizado')
-        BEGIN 
-            RAISERROR('Estado inválido.',16,1);
-            RETURN;
-        END
-        
-        -- Validar fechas
+        BEGIN RAISERROR('Estado inválido.',16,1); RETURN; END;
+
+        -- Fechas coherentes
         IF @fecha_resolucion IS NOT NULL AND @fecha_resolucion < @fecha_ingreso
-        BEGIN 
-            RAISERROR('fecha_resolucion debe ser >= fecha_ingreso.',16,1);
-            RETURN;
-        END
-        
-        -- Validar tipo de trámite
+        BEGIN RAISERROR('fecha_resolucion debe ser >= fecha_ingreso.',16,1); RETURN; END;
+
+        -- Tipo de trámite existe
         IF NOT EXISTS(SELECT 1 FROM dbo.Tipo_Tramite WHERE tipo_tramite_id=@tipo_tramite_id)
-        BEGIN 
-            RAISERROR('tipo_tramite_id no existe.',16,1); 
-            RETURN; 
-        END
-        
-        -- Validar contribuyente
+        BEGIN RAISERROR('tipo_tramite_id no existe.',16,1); RETURN; END;
+
+        -- Contribuyente existe
         IF NOT EXISTS(SELECT 1 FROM dbo.Contribuyente WHERE contribuyente_id=@contribuyente_id)
-        BEGIN 
-            RAISERROR('contribuyente_id no existe.',16,1); 
-            RETURN; 
-        END
-        
-        -- Validar inmueble
-        IF NOT EXISTS(SELECT 1 FROM dbo.Inmueble WHERE inmueble_id=@inmueble_id)
-        BEGIN 
-            RAISERROR('inmueble_id no existe.',16,1); 
-            RETURN; 
-        END
-        
-        -- Insertar
+        BEGIN RAISERROR('contribuyente_id no existe.',16,1); RETURN; END;
+
+        -- Inmueble solo si viene
+        IF @inmueble_id IS NOT NULL 
+           AND NOT EXISTS(SELECT 1 FROM dbo.Inmueble WHERE inmueble_id=@inmueble_id)
+        BEGIN RAISERROR('inmueble_id no existe.',16,1); RETURN; END;
+
         INSERT INTO dbo.Tramite (
-            fecha_ingreso, 
-            fecha_resolucion, 
-            observaciones, 
-            estado_actual,
-            tipo_tramite_id, 
-            contribuyente_id, 
-            inmueble_id
+            fecha_ingreso, fecha_resolucion, observaciones, estado_actual,
+            tipo_tramite_id, contribuyente_id, inmueble_id
         )
         VALUES (
-            @fecha_ingreso, 
-            @fecha_resolucion, 
-            @observaciones, 
-            @estado_actual,
-            @tipo_tramite_id, 
-            @contribuyente_id, 
-            @inmueble_id
+            @fecha_ingreso, @fecha_resolucion, @observaciones, @estado_actual,
+            @tipo_tramite_id, @contribuyente_id, @inmueble_id
         );
-        
+
         SELECT SCOPE_IDENTITY() AS tramite_id;
     END TRY
     BEGIN CATCH
-        DECLARE @ErrorMessage NVARCHAR(4000) = ERROR_MESSAGE();
-        RAISERROR(@ErrorMessage, 16, 1);
+        DECLARE @ErrorMessage NVARCHAR(4000)=ERROR_MESSAGE();
+        RAISERROR(@ErrorMessage,16,1);
     END CATCH
 END;
 GO
@@ -182,64 +171,48 @@ GO
 IF OBJECT_ID('sp_Tramite_Actualizar', 'P') IS NOT NULL
     DROP PROCEDURE sp_Tramite_Actualizar;
 GO
-
 CREATE PROCEDURE sp_Tramite_Actualizar
-    @tramite_id INT,
-    @fecha_ingreso DATE,
-    @fecha_resolucion DATE,
-    @observaciones VARCHAR(255),
-    @tipo_tramite_id INT,
+    @tramite_id       INT,
+    @fecha_ingreso    DATE,
+    @fecha_resolucion DATE = NULL,          -- <- PERMITE NULL
+    @observaciones    VARCHAR(255) = NULL,  -- <- PERMITE NULL
+    @tipo_tramite_id  INT,
     @contribuyente_id INT,
-    @inmueble_id INT
+    @inmueble_id      INT = NULL            -- <- AHORA OPCIONAL
 AS
 BEGIN
     SET NOCOUNT ON;
-    
     BEGIN TRY
         IF NOT EXISTS(SELECT 1 FROM dbo.Tramite WHERE tramite_id=@tramite_id)
-        BEGIN 
-            RAISERROR('El trámite no existe.',16,1); 
-            RETURN; 
-        END
-        
-        IF @fecha_resolucion < @fecha_ingreso
-        BEGIN 
-            RAISERROR('fecha_resolucion debe ser >= fecha_ingreso.',16,1); 
-            RETURN; 
-        END
-        
+        BEGIN RAISERROR('El trámite no existe.',16,1); RETURN; END;
+
+        IF @fecha_resolucion IS NOT NULL AND @fecha_resolucion < @fecha_ingreso
+        BEGIN RAISERROR('fecha_resolucion debe ser >= fecha_ingreso.',16,1); RETURN; END;
+
         IF NOT EXISTS(SELECT 1 FROM dbo.Tipo_Tramite WHERE tipo_tramite_id=@tipo_tramite_id)
-        BEGIN 
-            RAISERROR('tipo_tramite_id no existe.',16,1); 
-            RETURN; 
-        END
-        
+        BEGIN RAISERROR('tipo_tramite_id no existe.',16,1); RETURN; END;
+
         IF NOT EXISTS(SELECT 1 FROM dbo.Contribuyente WHERE contribuyente_id=@contribuyente_id)
-        BEGIN 
-            RAISERROR('contribuyente_id no existe.',16,1); 
-            RETURN; 
-        END
-        
-        IF NOT EXISTS(SELECT 1 FROM dbo.Inmueble WHERE inmueble_id=@inmueble_id)
-        BEGIN 
-            RAISERROR('inmueble_id no existe.',16,1); 
-            RETURN; 
-        END
-        
+        BEGIN RAISERROR('contribuyente_id no existe.',16,1); RETURN; END;
+
+        IF @inmueble_id IS NOT NULL 
+           AND NOT EXISTS(SELECT 1 FROM dbo.Inmueble WHERE inmueble_id=@inmueble_id)
+        BEGIN RAISERROR('inmueble_id no existe.',16,1); RETURN; END;
+
         UPDATE dbo.Tramite
-        SET fecha_ingreso=@fecha_ingreso,
-            fecha_resolucion=@fecha_resolucion,
-            observaciones=@observaciones,
-            tipo_tramite_id=@tipo_tramite_id,
-            contribuyente_id=@contribuyente_id,
-            inmueble_id=@inmueble_id
+        SET fecha_ingreso     = @fecha_ingreso,
+            fecha_resolucion  = @fecha_resolucion,
+            observaciones     = @observaciones,
+            tipo_tramite_id   = @tipo_tramite_id,
+            contribuyente_id  = @contribuyente_id,
+            inmueble_id       = @inmueble_id
         WHERE tramite_id=@tramite_id;
-        
+
         SELECT 1 AS resultado;
     END TRY
     BEGIN CATCH
-        DECLARE @ErrorMessage NVARCHAR(4000) = ERROR_MESSAGE();
-        RAISERROR(@ErrorMessage, 16, 1);
+        DECLARE @ErrorMessage NVARCHAR(4000)=ERROR_MESSAGE();
+        RAISERROR(@ErrorMessage,16,1);
     END CATCH
 END;
 GO
@@ -253,27 +226,18 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
-    SELECT
-        -- Trámite
+    SELECT 
         t.tramite_id,
         t.fecha_ingreso,
         t.fecha_resolucion,
         t.observaciones,
         t.estado_actual,
+
         t.tipo_tramite_id,
+        tt.nombre_tipo              AS tipo_tramite_nombre,
+
         t.contribuyente_id,
-        t.inmueble_id,
-
-        -- Tipo de trámite
-        tt.nombre_tipo AS tipo_tramite_nombre,
-
-        -- Contribuyente base
         c.tipo_contribuyente,
-        c.telefono        AS contribuyente_telefono,
-        c.email           AS contribuyente_email,
-        c.direccion       AS contribuyente_direccion,
-
-        -- Nombre e identificación según subtipo
         CASE 
             WHEN c.tipo_contribuyente = 'Física' 
                 THEN LTRIM(RTRIM(
@@ -282,28 +246,33 @@ BEGIN
                       COALESCE(cf.apellido2,'')
                 ))
             ELSE COALESCE(cj.nombre_empresa,'')
-        END AS contribuyente_nombre,
+        END                          AS contribuyente_nombre,
         CASE 
             WHEN c.tipo_contribuyente = 'Física' 
                 THEN cf.cedula
             ELSE cj.cedula_juridica
-        END AS contribuyente_identificacion,
+        END                          AS contribuyente_identificacion,
+        c.telefono                   AS contribuyente_telefono,
+        c.email                      AS contribuyente_email,
+        c.direccion                  AS contribuyente_direccion,
 
-        -- Inmueble + tipo de uso
-        i.direccion_exacta      AS inmueble_direccion_exacta,
-        i.area_terreno          AS inmueble_area_terreno,
-        i.valor_fiscal          AS inmueble_valor_fiscal,
-        i.estado_ocupacional    AS inmueble_estado_ocupacional,
-        i.tipo_uso_inmueble_id  AS inmueble_tipo_uso_id,
-        tu.nombre_uso           AS inmueble_tipo_uso_nombre
+        -- Inmueble opcional
+        i.inmueble_id,
+        i.direccion_exacta           AS inmueble_direccion_exacta,
+        i.area_terreno               AS inmueble_area_terreno,
+        i.valor_fiscal               AS inmueble_valor_fiscal,
+        i.estado_ocupacional         AS inmueble_estado_ocupacional,
+        i.tipo_uso_inmueble_id       AS inmueble_tipo_uso_id,
+        tu.nombre_uso                AS inmueble_tipo_uso_nombre
     FROM dbo.Tramite t
-    INNER JOIN dbo.Tipo_Tramite        tt ON tt.tipo_tramite_id       = t.tipo_tramite_id
-    INNER JOIN dbo.Contribuyente        c ON c.contribuyente_id       = t.contribuyente_id
-    LEFT  JOIN dbo.Contribuyente_fisico cf ON cf.contribuyente_id     = c.contribuyente_id
-    LEFT  JOIN dbo.Contribuyente_juridico cj ON cj.contribuyente_id   = c.contribuyente_id
-    INNER JOIN dbo.Inmueble              i ON i.inmueble_id           = t.inmueble_id
-    INNER JOIN dbo.TipoUsoInmueble      tu ON tu.tipo_uso_inmueble_id = i.tipo_uso_inmueble_id
-    ORDER BY t.fecha_ingreso DESC;
+    INNER JOIN dbo.Tipo_Tramite            tt ON tt.tipo_tramite_id       = t.tipo_tramite_id
+    INNER JOIN dbo.Contribuyente            c ON c.contribuyente_id       = t.contribuyente_id
+    LEFT  JOIN dbo.Contribuyente_fisico    cf ON cf.contribuyente_id      = c.contribuyente_id
+    LEFT  JOIN dbo.Contribuyente_juridico  cj ON cj.contribuyente_id      = c.contribuyente_id
+    LEFT  JOIN dbo.Inmueble                 i ON i.inmueble_id            = t.inmueble_id
+    LEFT  JOIN dbo.TipoUsoInmueble         tu ON tu.tipo_uso_inmueble_id  = i.tipo_uso_inmueble_id
+
+    ORDER BY t.fecha_ingreso DESC, t.tramite_id DESC;
 END
 GO
 
@@ -349,6 +318,7 @@ BEGIN
             ELSE cj.cedula_juridica
         END AS contribuyente_identificacion,
 
+        -- Inmueble opcional
         i.direccion_exacta      AS inmueble_direccion_exacta,
         i.area_terreno          AS inmueble_area_terreno,
         i.valor_fiscal          AS inmueble_valor_fiscal,
@@ -356,12 +326,12 @@ BEGIN
         i.tipo_uso_inmueble_id  AS inmueble_tipo_uso_id,
         tu.nombre_uso           AS inmueble_tipo_uso_nombre
     FROM dbo.Tramite t
-    INNER JOIN dbo.Tipo_Tramite        tt ON tt.tipo_tramite_id       = t.tipo_tramite_id
-    INNER JOIN dbo.Contribuyente        c ON c.contribuyente_id       = t.contribuyente_id
-    LEFT  JOIN dbo.Contribuyente_fisico cf ON cf.contribuyente_id     = c.contribuyente_id
-    LEFT  JOIN dbo.Contribuyente_juridico cj ON cj.contribuyente_id   = c.contribuyente_id
-    INNER JOIN dbo.Inmueble              i ON i.inmueble_id           = t.inmueble_id
-    INNER JOIN dbo.TipoUsoInmueble      tu ON tu.tipo_uso_inmueble_id = i.tipo_uso_inmueble_id
+    INNER JOIN dbo.Tipo_Tramite            tt ON tt.tipo_tramite_id       = t.tipo_tramite_id
+    INNER JOIN dbo.Contribuyente            c ON c.contribuyente_id       = t.contribuyente_id
+    LEFT  JOIN dbo.Contribuyente_fisico    cf ON cf.contribuyente_id      = c.contribuyente_id
+    LEFT  JOIN dbo.Contribuyente_juridico  cj ON cj.contribuyente_id      = c.contribuyente_id
+    LEFT  JOIN dbo.Inmueble                 i ON i.inmueble_id            = t.inmueble_id
+    LEFT  JOIN dbo.TipoUsoInmueble         tu ON tu.tipo_uso_inmueble_id  = i.tipo_uso_inmueble_id
     WHERE t.tramite_id = @tramite_id;
 END
 GO
@@ -476,13 +446,15 @@ BEGIN
         t.observaciones,
 
         tt.nombre_tipo AS tipo_tramite_nombre,
+
+        -- Inmueble opcional
         i.direccion_exacta AS inmueble_direccion_exacta,
-        i.valor_fiscal AS inmueble_valor_fiscal
+        i.valor_fiscal     AS inmueble_valor_fiscal
     FROM dbo.Tramite t
-    INNER JOIN dbo.Tipo_Tramite        tt ON tt.tipo_tramite_id       = t.tipo_tramite_id
-    INNER JOIN dbo.Inmueble            i  ON i.inmueble_id            = t.inmueble_id
+    INNER JOIN dbo.Tipo_Tramite  tt ON tt.tipo_tramite_id = t.tipo_tramite_id
+    LEFT  JOIN dbo.Inmueble      i  ON i.inmueble_id      = t.inmueble_id
     WHERE t.contribuyente_id = @contribuyente_id
-    ORDER BY t.fecha_ingreso DESC;
+    ORDER BY t.fecha_ingreso DESC, t.tramite_id DESC;
 END;
 GO
 
@@ -542,14 +514,16 @@ BEGIN
                 THEN LTRIM(RTRIM(COALESCE(cf.nombre,'') + ' ' + COALESCE(cf.apellido1,'') + ' ' + COALESCE(cf.apellido2,'')))
             ELSE cj.nombre_empresa
         END AS contribuyente_nombre,
+
+        -- Inmueble opcional
         i.direccion_exacta AS inmueble_direccion_exacta
     FROM dbo.Tramite t
-    INNER JOIN dbo.Contribuyente        c  ON c.contribuyente_id      = t.contribuyente_id
-    LEFT  JOIN dbo.Contribuyente_fisico cf ON cf.contribuyente_id     = c.contribuyente_id
-    LEFT  JOIN dbo.Contribuyente_juridico cj ON cj.contribuyente_id   = c.contribuyente_id
-    INNER JOIN dbo.Inmueble            i   ON i.inmueble_id           = t.inmueble_id
+    INNER JOIN dbo.Contribuyente            c  ON c.contribuyente_id     = t.contribuyente_id
+    LEFT  JOIN dbo.Contribuyente_fisico     cf ON cf.contribuyente_id    = c.contribuyente_id
+    LEFT  JOIN dbo.Contribuyente_juridico   cj ON cj.contribuyente_id    = c.contribuyente_id
+    LEFT  JOIN dbo.Inmueble                 i  ON i.inmueble_id          = t.inmueble_id
     WHERE t.tipo_tramite_id = @tipo_tramite_id
-    ORDER BY t.fecha_ingreso DESC;
+    ORDER BY t.fecha_ingreso DESC, t.tramite_id DESC;
 END;
 GO
 
@@ -585,6 +559,26 @@ LEFT JOIN dbo.Requisito x ON x.nombre = r.nombre
 WHERE x.requisito_id IS NULL;
 GO
 
+/* ===========================================================
+   2) Asegurar requisitos base (idempotente)
+      (se crean solo los que no existan)
+   =========================================================== */
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name='UQ_Requisito_nombre' AND object_id=OBJECT_ID('dbo.Requisito'))
+    CREATE UNIQUE INDEX UQ_Requisito_nombre ON dbo.Requisito(nombre);
+
+;WITH Reqs(nombre, descripcion) AS (
+    SELECT 'Formulario de solicitud',          'Formulario de solicitud'          UNION ALL
+    SELECT 'Copia de cédula',                  'Copia de cédula del solicitante'  UNION ALL
+    SELECT 'Permiso sanitario',                'Permiso sanitario vigente'        UNION ALL
+    SELECT 'Licencia de conducir',             'Licencia de conducir vigente'     UNION ALL
+    SELECT 'Póliza de seguro vigente',         'Póliza de seguro al día'          UNION ALL
+    SELECT 'Declaración jurada',               'Declaración jurada firmada'
+)
+INSERT INTO dbo.Requisito (nombre, descripcion)
+SELECT r.nombre, r.descripcion
+FROM Reqs r
+LEFT JOIN dbo.Requisito q ON q.nombre = r.nombre
+WHERE q.requisito_id IS NULL;
 
 /* =========================================================
    REQUISITO 
@@ -695,6 +689,42 @@ SELECT tt.tipo_tramite_id, rq.requisito_id
 FROM Mapa m
 JOIN dbo.Tipo_Tramite tt ON tt.nombre_tipo = m.nombre_tipo
 JOIN dbo.Requisito rq     ON rq.nombre      = m.nombre_requisito
+LEFT JOIN dbo.Tipo_Tramite_Requisito ttr
+  ON ttr.tipo_tramite_id = tt.tipo_tramite_id
+ AND ttr.requisito_id    = rq.requisito_id
+WHERE ttr.tipo_tramite_requisito_id IS NULL;
+GO
+
+/* ===========================================================
+   3) Asociar requisitos a los NUEVOS tipos (idempotente)
+   =========================================================== */
+IF NOT EXISTS (
+    SELECT 1 FROM sys.indexes 
+    WHERE name = 'UQ_TipoTramiteRequisito'
+      AND object_id = OBJECT_ID('dbo.Tipo_Tramite_Requisito')
+)
+    CREATE UNIQUE INDEX UQ_TipoTramiteRequisito
+        ON dbo.Tipo_Tramite_Requisito(tipo_tramite_id, requisito_id);
+GO
+
+;WITH Mapa(nombre_tipo, nombre_requisito) AS (
+    -- Transporte de materiales
+    SELECT 'Permiso para Transporte de Materiales', 'Formulario de solicitud'  UNION ALL
+    SELECT 'Permiso para Transporte de Materiales', 'Copia de cédula'          UNION ALL
+    SELECT 'Permiso para Transporte de Materiales', 'Licencia de conducir'     UNION ALL
+    SELECT 'Permiso para Transporte de Materiales', 'Póliza de seguro vigente' UNION ALL
+    SELECT 'Permiso para Transporte de Materiales', 'Declaración jurada'
+    -- Venta de alcohol
+    UNION ALL SELECT 'Permiso para Venta de Alcohol', 'Formulario de solicitud' UNION ALL
+    SELECT 'Permiso para Venta de Alcohol', 'Copia de cédula'                   UNION ALL
+    SELECT 'Permiso para Venta de Alcohol', 'Permiso sanitario'                 UNION ALL
+    SELECT 'Permiso para Venta de Alcohol', 'Declaración jurada'
+)
+INSERT INTO dbo.Tipo_Tramite_Requisito (tipo_tramite_id, requisito_id)
+SELECT tt.tipo_tramite_id, rq.requisito_id
+FROM Mapa m
+JOIN dbo.Tipo_Tramite tt ON tt.nombre_tipo = m.nombre_tipo
+JOIN dbo.Requisito rq    ON rq.nombre      = m.nombre_requisito
 LEFT JOIN dbo.Tipo_Tramite_Requisito ttr
   ON ttr.tipo_tramite_id = tt.tipo_tramite_id
  AND ttr.requisito_id    = rq.requisito_id

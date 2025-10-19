@@ -102,6 +102,9 @@ CREATE TABLE dbo.Tramite
 );
 GO
 
+ALTER TABLE dbo.Tramite
+ALTER COLUMN inmueble_id INT NULL;
+
 -- Default para estado_actual
 ALTER TABLE dbo.Tramite
 ADD CONSTRAINT DF_Tramite_EstadoActual
