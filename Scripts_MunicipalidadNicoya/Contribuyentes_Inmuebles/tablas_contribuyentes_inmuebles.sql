@@ -383,3 +383,291 @@ PRINT '========================================';
 GO
 
 
+
+
+
+
+
+-- =============================================
+-- TABLA: Servicio_Inmueble
+-- Descripción: Configuración permanente de servicios por inmueble
+-- Propósito: Define QUÉ servicios tiene contratados cada inmueble
+--            para la generación automática de facturas trimestrales
+-- =============================================
+
+USE MunicipalidadNicoya;
+GO
+
+PRINT '';
+PRINT '========================================';
+PRINT '🏗️ CREACIÓN DE TABLA: Servicio_Inmueble';
+PRINT '========================================';
+PRINT '';
+
+-- =============================================
+-- 1. ELIMINAR TABLA SI EXISTE (para recrear limpia)
+-- =============================================
+
+IF OBJECT_ID('dbo.Servicio_Inmueble', 'U') IS NOT NULL
+BEGIN
+    PRINT '⚠️  La tabla Servicio_Inmueble ya existe';
+    PRINT '   Eliminando para recrear...';
+    DROP TABLE dbo.Servicio_Inmueble;
+    PRINT '   ✓ Tabla eliminada';
+    PRINT '';
+END
+
+-- =============================================
+-- 2. CREAR TABLA SERVICIO_INMUEBLE
+-- =============================================
+
+PRINT '📦 Creando tabla Servicio_Inmueble...';
+GO
+
+CREATE TABLE dbo.Servicio_Inmueble (
+    -- Identificador único
+    servicio_inmueble_id INT IDENTITY(1,1) NOT NULL,
+    
+    -- Relaciones
+    inmueble_id INT NOT NULL,
+    rubro_id INT NOT NULL,
+    
+    -- Estado del servicio
+    activo BIT NOT NULL DEFAULT 1,
+    
+    -- Control de fechas
+    fecha_inicio DATE NOT NULL DEFAULT GETDATE(),
+    fecha_fin DATE NULL,
+    
+    -- Tarifa personalizada (opcional)
+    tarifa_personalizada DECIMAL(12,2) NULL,
+    
+    -- Observaciones
+    observaciones VARCHAR(300) NULL,
+    
+    -- =============================================
+    -- CONSTRAINT: Clave primaria
+    -- =============================================
+    CONSTRAINT PK_ServicioInmueble 
+        PRIMARY KEY CLUSTERED (servicio_inmueble_id),
+    
+    -- =============================================
+    -- CONSTRAINT: Claves foráneas (relaciones)
+    -- =============================================
+    
+    -- Relación con Inmueble (N:1)
+    CONSTRAINT FK_ServicioInmueble_Inmueble 
+        FOREIGN KEY (inmueble_id) 
+        REFERENCES dbo.Inmueble(inmueble_id)
+        ON DELETE CASCADE,  -- Si eliminas inmueble, eliminas sus servicios
+    
+    -- Relación con Rubro (N:1)
+    CONSTRAINT FK_ServicioInmueble_Rubro 
+        FOREIGN KEY (rubro_id) 
+        REFERENCES dbo.Rubro(rubro_id)
+        ON DELETE NO ACTION,  -- No permitir eliminar rubro si tiene servicios activos
+    
+    -- =============================================
+    -- CONSTRAINT: Un inmueble NO puede tener el mismo servicio duplicado
+    -- =============================================
+    CONSTRAINT UQ_ServicioInmueble_InmuebleRubro 
+        UNIQUE (inmueble_id, rubro_id),
+    
+    -- =============================================
+    -- CONSTRAINT: Validación de fechas
+    -- =============================================
+    CONSTRAINT CHK_ServicioInmueble_FechaFin 
+        CHECK (fecha_fin IS NULL OR fecha_fin >= fecha_inicio),
+    
+    -- =============================================
+    -- CONSTRAINT: Tarifa personalizada no puede ser negativa
+    -- =============================================
+    CONSTRAINT CHK_ServicioInmueble_TarifaPersonalizada 
+        CHECK (tarifa_personalizada IS NULL OR tarifa_personalizada >= 0)
+);
+
+PRINT '   ✓ Tabla creada exitosamente';
+PRINT '';
+
+-- =============================================
+-- 3. CREAR ÍNDICES PARA OPTIMIZACIÓN
+-- =============================================
+
+PRINT '📊 Creando índices de optimización...';
+GO
+
+-- Índice para buscar servicios activos de un inmueble
+CREATE NONCLUSTERED INDEX IDX_ServicioInmueble_Inmueble_Activo
+    ON dbo.Servicio_Inmueble(inmueble_id, activo)
+    INCLUDE (rubro_id, tarifa_personalizada)
+    WHERE activo = 1;
+
+PRINT '   ✓ IDX_ServicioInmueble_Inmueble_Activo creado';
+
+-- Índice para buscar qué inmuebles tienen un servicio específico
+CREATE NONCLUSTERED INDEX IDX_ServicioInmueble_Rubro_Activo
+    ON dbo.Servicio_Inmueble(rubro_id, activo)
+    INCLUDE (inmueble_id)
+    WHERE activo = 1;
+
+PRINT '   ✓ IDX_ServicioInmueble_Rubro_Activo creado';
+
+-- Índice para consultas por fecha
+CREATE NONCLUSTERED INDEX IDX_ServicioInmueble_FechaInicio
+    ON dbo.Servicio_Inmueble(fecha_inicio)
+    INCLUDE (inmueble_id, rubro_id, activo);
+
+PRINT '   ✓ IDX_ServicioInmueble_FechaInicio creado';
+
+PRINT '';
+
+-- =============================================
+-- 4. DOCUMENTACIÓN DE LA TABLA
+-- =============================================
+
+PRINT '========================================';
+PRINT '📖 DOCUMENTACIÓN';
+PRINT '========================================';
+PRINT '';
+PRINT 'Tabla: Servicio_Inmueble';
+PRINT '';
+PRINT 'Propósito:';
+PRINT '  Almacena la configuración PERMANENTE de servicios';
+PRINT '  que tiene contratados cada inmueble.';
+PRINT '';
+PRINT 'Columnas:';
+PRINT '  - servicio_inmueble_id: ID único (autoincremental)';
+PRINT '  - inmueble_id: FK → Inmueble (¿PARA CUÁL inmueble?)';
+PRINT '  - rubro_id: FK → Rubro (¿QUÉ servicio tiene?)';
+PRINT '  - activo: 1=Activo, 0=Desactivado';
+PRINT '  - fecha_inicio: Desde cuándo tiene el servicio';
+PRINT '  - fecha_fin: Cuándo se desactivó (NULL si activo)';
+PRINT '  - tarifa_personalizada: Tarifa especial (anula tarifa del rubro)';
+PRINT '  - observaciones: Notas adicionales';
+PRINT '';
+PRINT 'Relaciones:';
+PRINT '  ┌─────────────┐';
+PRINT '  │  Inmueble   │';
+PRINT '  └──────┬──────┘';
+PRINT '         │ 1';
+PRINT '         │';
+PRINT '         │ N';
+PRINT '  ┌──────┴────────────┐      N  ┌─────────┐';
+PRINT '  │ Servicio_Inmueble │◄────────┤  Rubro  │';
+PRINT '  └───────────────────┘      1  └─────────┘';
+PRINT '';
+PRINT 'Restricciones:';
+PRINT '  ✓ Un inmueble NO puede tener duplicado el mismo servicio';
+PRINT '  ✓ fecha_fin debe ser >= fecha_inicio';
+PRINT '  ✓ tarifa_personalizada no puede ser negativa';
+PRINT '  ✓ Si eliminas inmueble → se eliminan sus servicios (CASCADE)';
+PRINT '  ✓ NO puedes eliminar rubro si tiene servicios activos';
+PRINT '';
+
+-- =============================================
+-- 5. EJEMPLOS DE USO
+-- =============================================
+
+PRINT '========================================';
+PRINT '📝 EJEMPLOS DE USO';
+PRINT '========================================';
+PRINT '';
+PRINT '-- Ejemplo 1: Agregar servicios a un inmueble';
+PRINT 'INSERT INTO Servicio_Inmueble (inmueble_id, rubro_id, activo)';
+PRINT 'VALUES ';
+PRINT '  (123, 1, 1),  -- Impuesto territorial';
+PRINT '  (123, 2, 1),  -- Recolección basura';
+PRINT '  (123, 3, 1);  -- Alumbrado público';
+PRINT '';
+PRINT '-- Ejemplo 2: Consultar servicios activos de un inmueble';
+PRINT 'SELECT ';
+PRINT '    si.servicio_inmueble_id,';
+PRINT '    r.nombre AS servicio,';
+PRINT '    si.fecha_inicio,';
+PRINT '    si.tarifa_personalizada';
+PRINT 'FROM Servicio_Inmueble si';
+PRINT 'INNER JOIN Rubro r ON si.rubro_id = r.rubro_id';
+PRINT 'WHERE si.inmueble_id = 123';
+PRINT '  AND si.activo = 1;';
+PRINT '';
+PRINT '-- Ejemplo 3: Desactivar un servicio';
+PRINT 'UPDATE Servicio_Inmueble';
+PRINT 'SET activo = 0,';
+PRINT '    fecha_fin = GETDATE()';
+PRINT 'WHERE inmueble_id = 123';
+PRINT '  AND rubro_id = 3;  -- Desactivar alumbrado';
+PRINT '';
+PRINT '-- Ejemplo 4: Reactivar un servicio';
+PRINT 'UPDATE Servicio_Inmueble';
+PRINT 'SET activo = 1,';
+PRINT '    fecha_fin = NULL,';
+PRINT '    fecha_inicio = GETDATE()';
+PRINT 'WHERE inmueble_id = 123';
+PRINT '  AND rubro_id = 3;';
+PRINT '';
+
+-- =============================================
+-- 6. VERIFICACIÓN FINAL
+-- =============================================
+
+PRINT '========================================';
+PRINT '✅ VERIFICACIÓN';
+PRINT '========================================';
+PRINT '';
+
+-- Verificar que la tabla existe
+IF OBJECT_ID('dbo.Servicio_Inmueble', 'U') IS NOT NULL
+    PRINT '✓ Tabla Servicio_Inmueble creada correctamente';
+ELSE
+    PRINT '✗ ERROR: La tabla NO se creó';
+
+-- Verificar relaciones (FK)
+IF EXISTS (
+    SELECT 1 FROM sys.foreign_keys 
+    WHERE name = 'FK_ServicioInmueble_Inmueble'
+)
+    PRINT '✓ FK con Inmueble creada correctamente';
+ELSE
+    PRINT '✗ ERROR: FK con Inmueble NO existe';
+
+IF EXISTS (
+    SELECT 1 FROM sys.foreign_keys 
+    WHERE name = 'FK_ServicioInmueble_Rubro'
+)
+    PRINT '✓ FK con Rubro creada correctamente';
+ELSE
+    PRINT '✗ ERROR: FK con Rubro NO existe';
+
+-- Verificar restricción UNIQUE
+IF EXISTS (
+    SELECT 1 FROM sys.indexes 
+    WHERE name = 'UQ_ServicioInmueble_InmuebleRubro'
+)
+    PRINT '✓ Restricción UNIQUE creada correctamente';
+ELSE
+    PRINT '✗ ERROR: Restricción UNIQUE NO existe';
+
+-- Contar índices
+DECLARE @cant_indices INT;
+SELECT @cant_indices = COUNT(*) 
+FROM sys.indexes 
+WHERE object_id = OBJECT_ID('dbo.Servicio_Inmueble')
+  AND name IS NOT NULL;
+
+PRINT '✓ Total de índices creados: ' + CAST(@cant_indices AS VARCHAR);
+
+PRINT '';
+PRINT '========================================';
+PRINT '🎉 TABLA SERVICIO_INMUEBLE LISTA';
+PRINT '========================================';
+PRINT '';
+PRINT 'Próximos pasos:';
+PRINT '  1. Crear SPs para gestionar servicios';
+PRINT '  2. Crear SP de generación automática de facturas';
+PRINT '  3. Configurar Job trimestral';
+PRINT '';
+GO
+
+
+
+

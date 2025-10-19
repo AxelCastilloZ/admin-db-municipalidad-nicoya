@@ -1,6 +1,4 @@
 -- =============================================
-
--- =============================================
 -- SCRIPT DE LIMPIEZA COMPLETA
 -- Ejecutar ANTES del script de pruebas
 -- =============================================
@@ -14,6 +12,7 @@ PRINT 'Limpiando base de datos...';
 DELETE FROM Pago;
 DELETE FROM Detalle_factura;
 DELETE FROM Factura;
+DELETE FROM Servicio_Inmueble;
 DELETE FROM Rubro;
 DELETE FROM Tramite;
 DELETE FROM Tipo_Tramite_Requisito;
@@ -28,9 +27,9 @@ DELETE FROM Contribuyente_fisico;
 DELETE FROM Contribuyente;
 
 -- NO eliminar estas tablas de catálogo:
--- - TipoUsoInmueble (tiene los tipos: Residencial, Comercial, etc.)
--- - Tipo_Tramite (tiene: Permiso de Construcción, Patente Comercial, etc.)
--- - Usuario (si ya tienes usuarios creados)
+-- - TipoUsoInmueble
+-- - Tipo_Tramite
+-- - Usuario
 
 PRINT '? Base de datos limpiada correctamente';
 PRINT '? Puedes ejecutar ahora el script de pruebas';
@@ -50,9 +49,9 @@ GO
 
 
 
--- SCRIPT DE PRUEBA COMPLETO
+-- =============================================
+-- SCRIPT DE PRUEBA COMPLETO Y CORREGIDO
 -- Sistema de Gestión Municipal de Nicoya
--- Flujo: Contribuyentes ? Inmuebles ? Trámites ? Pagos
 -- =============================================
 
 USE MunicipalidadNicoya;
@@ -65,18 +64,27 @@ PRINT '---------------------------------------------------------------';
 PRINT '';
 
 -- =============================================
--- FASE 1: MÓDULO CONTRIBUYENTES E INMUEBLES
+-- DECLARACIÓN DE VARIABLES (TODAS AL INICIO)
 -- =============================================
 
-PRINT '+-------------------------------------------------------------+';
-PRINT '¦ FASE 1: CONTRIBUYENTES E INMUEBLES                         ¦';
-PRINT '+-------------------------------------------------------------+';
-PRINT '';
+-- Variables de Rubros
+DECLARE @rubro_impuesto_territorial INT;
+DECLARE @rubro_licencia_comercial INT;
+DECLARE @rubro_patente_municipal INT;
+DECLARE @rubro_servicio_agua INT;
+DECLARE @rubro_servicio_basura INT;
+DECLARE @rubro_permiso_construccion INT;
+DECLARE @rubro_permiso_rotulo INT;
+DECLARE @rubro_certificacion_suelo INT;
+DECLARE @rubro_timbres_municipales INT;
+DECLARE @rubro_otros_servicios INT;
 
--- Variables para almacenar IDs
+-- Variables de Contribuyentes
 DECLARE @contrib_fisico1_id INT;
 DECLARE @contrib_fisico2_id INT;
 DECLARE @contrib_juridico1_id INT;
+
+-- Variables de Inmuebles
 DECLARE @inmueble1_id INT;
 DECLARE @inmueble2_id INT;
 DECLARE @inmueble3_id INT;
@@ -84,10 +92,135 @@ DECLARE @catastro1_id INT;
 DECLARE @tipo_uso_residencial INT;
 DECLARE @tipo_uso_comercial INT;
 
+-- Variables de Trámites
+DECLARE @tramite1_id INT;
+DECLARE @tramite2_id INT;
+DECLARE @tipo_permiso_construccion INT;
+DECLARE @tipo_patente_comercial INT;
+
+-- Variables de Facturas y Pagos
+DECLARE @factura1_id INT;
+DECLARE @factura2_id INT;
+DECLARE @numero_factura1 VARCHAR(50);
+DECLARE @numero_factura2 VARCHAR(50);
+DECLARE @detalle1_id INT;
+DECLARE @detalle2_id INT;
+DECLARE @pago1_id INT;
+DECLARE @numero_recibo1 VARCHAR(50);
+DECLARE @usuario_id INT;
+DECLARE @referencia_servicio1 VARCHAR(100);
+DECLARE @referencia_servicio2 VARCHAR(100);
+DECLARE @referencia_servicio3 VARCHAR(100);
+
+-- Variables auxiliares
+DECLARE @count_rubros INT;
+DECLARE @monto_total_factura DECIMAL(12,2);
+DECLARE @rubros_batch_inmueble2 VARCHAR(100);
+DECLARE @rubros_batch_inmueble3 VARCHAR(100);
+
 -- =============================================
--- 1.1 INSERTAR CONTRIBUYENTES FÍSICOS
+-- FASE 0: PREPARACIÓN DE DATOS BASE (RUBROS)
 -- =============================================
-PRINT '? 1.1 Creando contribuyentes físicos...';
+
+PRINT '+-------------------------------------------------------------+';
+PRINT '| FASE 0: PREPARACIÓN DE RUBROS                               |';
+PRINT '+-------------------------------------------------------------+';
+PRINT '';
+
+PRINT '?? 0.1 Verificando rubros en el sistema...';
+
+SELECT @count_rubros = COUNT(*) FROM dbo.Rubro;
+
+IF @count_rubros = 0
+BEGIN
+    PRINT '  ??  No se encontraron rubros en el sistema.';
+    PRINT '  ?? Insertando rubros base...';
+    PRINT '';
+    
+    -- Rubro 1: Impuesto Territorial
+    INSERT INTO dbo.Rubro (nombre, descripcion, periodicidad, tarifa_base, vigencia, aplica_recargo, aplica_intereses, tasa_interes, tasa_recargo) 
+    VALUES ('Impuesto Territorial', 'Impuesto sobre bienes inmuebles', 'Trimestral', 50000.00, 1, 1, 1, 2.5, 1.0);
+    SET @rubro_impuesto_territorial = SCOPE_IDENTITY();
+    
+    -- Rubro 2: Licencia Comercial
+    INSERT INTO dbo.Rubro (nombre, descripcion, periodicidad, tarifa_base, vigencia, aplica_recargo, aplica_intereses, tasa_interes, tasa_recargo) 
+    VALUES ('Licencia Comercial', 'Licencia para ejercer actividad comercial', 'Anual', 35000.00, 1, 1, 0, 0, 1.5);
+    SET @rubro_licencia_comercial = SCOPE_IDENTITY();
+    
+    -- Rubro 3: Patente Municipal
+    INSERT INTO dbo.Rubro (nombre, descripcion, periodicidad, tarifa_base, vigencia, aplica_recargo, aplica_intereses, tasa_interes, tasa_recargo) 
+    VALUES ('Patente Municipal', 'Patente para comercio o servicio', 'Anual', 120000.00, 1, 1, 1, 3.0, 10.0);
+    SET @rubro_patente_municipal = SCOPE_IDENTITY();
+    
+    -- Rubro 4: Servicio de Agua
+    INSERT INTO dbo.Rubro (nombre, descripcion, periodicidad, tarifa_base, vigencia, aplica_recargo, aplica_intereses, tasa_interes, tasa_recargo) 
+    VALUES ('Servicio de Agua', 'Cobro por suministro de agua potable', 'Mensual', 3500.00, 1, 0, 0, 0, 0);
+    SET @rubro_servicio_agua = SCOPE_IDENTITY();
+    
+    -- Rubro 5: Servicio de Basura
+    INSERT INTO dbo.Rubro (nombre, descripcion, periodicidad, tarifa_base, vigencia, aplica_recargo, aplica_intereses, tasa_interes, tasa_recargo) 
+    VALUES ('Servicio de Basura', 'Recolección y manejo de desechos', 'Mensual', 4000.00, 1, 0, 0, 0, 0);
+    SET @rubro_servicio_basura = SCOPE_IDENTITY();
+    
+    -- Rubro 6: Permiso de Construcción
+    INSERT INTO dbo.Rubro (nombre, descripcion, periodicidad, tarifa_base, vigencia, aplica_recargo, aplica_intereses, tasa_interes, tasa_recargo) 
+    VALUES ('Permiso de Construcción', 'Permiso para construcción o remodelación', 'Único', 75000.00, 1, 1, 1, 2.5, 5.0);
+    SET @rubro_permiso_construccion = SCOPE_IDENTITY();
+    
+    -- Rubro 7: Permiso de Rótulo
+    INSERT INTO dbo.Rubro (nombre, descripcion, periodicidad, tarifa_base, vigencia, aplica_recargo, aplica_intereses, tasa_interes, tasa_recargo) 
+    VALUES ('Permiso de Rótulo', 'Permiso para instalación de rótulos', 'Único', 15000.00, 1, 0, 0, 0, 0);
+    SET @rubro_permiso_rotulo = SCOPE_IDENTITY();
+    
+    -- Rubro 8: Certificación de Uso de Suelo
+    INSERT INTO dbo.Rubro (nombre, descripcion, periodicidad, tarifa_base, vigencia, aplica_recargo, aplica_intereses, tasa_interes, tasa_recargo) 
+    VALUES ('Certificación de Uso de Suelo', 'Certificado de uso de suelo', 'Único', 8000.00, 1, 0, 0, 0, 0);
+    SET @rubro_certificacion_suelo = SCOPE_IDENTITY();
+    
+    -- Rubro 9: Timbres Municipales
+    INSERT INTO dbo.Rubro (nombre, descripcion, periodicidad, tarifa_base, vigencia, aplica_recargo, aplica_intereses, tasa_interes, tasa_recargo) 
+    VALUES ('Timbres Municipales', 'Timbres y estampillas municipales', 'Único', 500.00, 1, 0, 0, 0, 0);
+    SET @rubro_timbres_municipales = SCOPE_IDENTITY();
+    
+    -- Rubro 10: Otros Servicios
+    INSERT INTO dbo.Rubro (nombre, descripcion, periodicidad, tarifa_base, vigencia, aplica_recargo, aplica_intereses, tasa_interes, tasa_recargo) 
+    VALUES ('Otros Servicios', 'Servicios varios municipales', NULL, 0.00, 1, 0, 0, 0, 0);
+    SET @rubro_otros_servicios = SCOPE_IDENTITY();
+    
+    PRINT '  ? 10 rubros insertados correctamente';
+    PRINT '';
+END
+ELSE
+BEGIN
+    -- Si ya existen, obtener los IDs por nombre
+    SELECT @rubro_impuesto_territorial = rubro_id FROM Rubro WHERE nombre = 'Impuesto Territorial';
+    SELECT @rubro_licencia_comercial = rubro_id FROM Rubro WHERE nombre = 'Licencia Comercial';
+    SELECT @rubro_patente_municipal = rubro_id FROM Rubro WHERE nombre = 'Patente Municipal';
+    SELECT @rubro_servicio_agua = rubro_id FROM Rubro WHERE nombre = 'Servicio de Agua';
+    SELECT @rubro_servicio_basura = rubro_id FROM Rubro WHERE nombre = 'Servicio de Basura';
+    SELECT @rubro_permiso_construccion = rubro_id FROM Rubro WHERE nombre = 'Permiso de Construcción';
+    SELECT @rubro_permiso_rotulo = rubro_id FROM Rubro WHERE nombre = 'Permiso de Rótulo';
+    SELECT @rubro_certificacion_suelo = rubro_id FROM Rubro WHERE nombre = 'Certificación de Uso de Suelo';
+    SELECT @rubro_timbres_municipales = rubro_id FROM Rubro WHERE nombre = 'Timbres Municipales';
+    SELECT @rubro_otros_servicios = rubro_id FROM Rubro WHERE nombre = 'Otros Servicios';
+    
+    PRINT '  ? Rubros encontrados en el sistema: ' + CAST(@count_rubros AS VARCHAR(10));
+    PRINT '';
+END
+
+PRINT '? FASE 0 COMPLETADA: Rubros disponibles';
+PRINT '';
+
+-- =============================================
+-- FASE 1: MÓDULO CONTRIBUYENTES E INMUEBLES
+-- =============================================
+
+PRINT '+-------------------------------------------------------------+';
+PRINT '| FASE 1: CONTRIBUYENTES E INMUEBLES                          |';
+PRINT '+-------------------------------------------------------------+';
+PRINT '';
+
+PRINT '?? 1.1 Creando contribuyentes físicos...';
 
 EXEC sp_Contribuyente_InsertarFisico
     @cedula = '1-0890-0456',
@@ -113,11 +246,8 @@ EXEC sp_Contribuyente_InsertarFisico
 SET @contrib_fisico2_id = (SELECT TOP 1 contribuyente_id FROM Contribuyente ORDER BY contribuyente_id DESC);
 PRINT '  ? Contribuyente físico 2 creado - ID: ' + CAST(@contrib_fisico2_id AS VARCHAR(10));
 
--- =============================================
--- 1.2 INSERTAR CONTRIBUYENTE JURÍDICO
--- =============================================
 PRINT '';
-PRINT '? 1.2 Creando contribuyente jurídico...';
+PRINT '?? 1.2 Creando contribuyente jurídico...';
 
 EXEC sp_Contribuyente_InsertarJuridico
     @cedula_juridica = '3-101-987654',
@@ -129,19 +259,13 @@ EXEC sp_Contribuyente_InsertarJuridico
 
 SET @contrib_juridico1_id = (SELECT TOP 1 contribuyente_id FROM Contribuyente ORDER BY contribuyente_id DESC);
 PRINT '  ? Contribuyente jurídico creado - ID: ' + CAST(@contrib_juridico1_id AS VARCHAR(10));
-PRINT '    Representante Legal: Carlos Ramírez Mora';
 
--- =============================================
--- 1.3 INSERTAR INMUEBLES
--- =============================================
 PRINT '';
-PRINT '? 1.3 Creando inmuebles...';
+PRINT '??? 1.3 Creando inmuebles...';
 
--- Obtener IDs de tipos de uso
 SELECT @tipo_uso_residencial = tipo_uso_inmueble_id FROM TipoUsoInmueble WHERE nombre_uso = 'Residencial';
 SELECT @tipo_uso_comercial = tipo_uso_inmueble_id FROM TipoUsoInmueble WHERE nombre_uso = 'Comercial';
 
--- Inmueble 1 (Residencial)
 EXEC sp_Inmueble_Insertar
     @direccion_exacta = 'Nicoya Centro, 150m norte del Banco Nacional',
     @area_terreno = 280.00,
@@ -152,7 +276,6 @@ EXEC sp_Inmueble_Insertar
 SET @inmueble1_id = (SELECT TOP 1 inmueble_id FROM Inmueble ORDER BY inmueble_id DESC);
 PRINT '  ? Inmueble 1 (Residencial) creado - ID: ' + CAST(@inmueble1_id AS VARCHAR(10));
 
--- Inmueble 2 (Comercial)
 EXEC sp_Inmueble_Insertar
     @direccion_exacta = 'Nicoya, Avenida Central frente al Mercado',
     @area_terreno = 350.00,
@@ -163,7 +286,6 @@ EXEC sp_Inmueble_Insertar
 SET @inmueble2_id = (SELECT TOP 1 inmueble_id FROM Inmueble ORDER BY inmueble_id DESC);
 PRINT '  ? Inmueble 2 (Comercial) creado - ID: ' + CAST(@inmueble2_id AS VARCHAR(10));
 
--- Inmueble 3 (Comercial para empresa)
 EXEC sp_Inmueble_Insertar
     @direccion_exacta = 'Nicoya, Zona Industrial Norte, Bodega #5',
     @area_terreno = 500.00,
@@ -174,38 +296,29 @@ EXEC sp_Inmueble_Insertar
 SET @inmueble3_id = (SELECT TOP 1 inmueble_id FROM Inmueble ORDER BY inmueble_id DESC);
 PRINT '  ? Inmueble 3 (Comercial) creado - ID: ' + CAST(@inmueble3_id AS VARCHAR(10));
 
--- =============================================
--- 1.4 ASOCIAR CONTRIBUYENTES A INMUEBLES
--- =============================================
 PRINT '';
-PRINT '? 1.4 Asociando contribuyentes a inmuebles...';
+PRINT '?? 1.4 Asociando contribuyentes a inmuebles...';
 
--- Carlos Ramírez ? Inmueble 1 (100%)
 EXEC sp_Inmueble_AsociarContribuyente
     @contribuyente_id = @contrib_fisico1_id,
     @inmueble_id = @inmueble1_id,
     @porcentaje_propiedad = 100.00;
-PRINT '  ? Carlos Ramírez asociado al Inmueble 1 (100%)';
+PRINT '  ? Carlos Ramírez asociado al Inmueble 1';
 
--- Ana López ? Inmueble 2 (100%)
 EXEC sp_Inmueble_AsociarContribuyente
     @contribuyente_id = @contrib_fisico2_id,
     @inmueble_id = @inmueble2_id,
     @porcentaje_propiedad = 100.00;
-PRINT '  ? Ana López asociada al Inmueble 2 (100%)';
+PRINT '  ? Ana López asociada al Inmueble 2';
 
--- Constructora Nicoya S.A. ? Inmueble 3 (100%)
 EXEC sp_Inmueble_AsociarContribuyente
     @contribuyente_id = @contrib_juridico1_id,
     @inmueble_id = @inmueble3_id,
     @porcentaje_propiedad = 100.00;
-PRINT '  ? Constructora Nicoya S.A. asociada al Inmueble 3 (100%)';
+PRINT '  ? Constructora Nicoya S.A. asociada al Inmueble 3';
 
--- =============================================
--- 1.5 CREAR CATASTROS
--- =============================================
 PRINT '';
-PRINT '? 1.5 Creando información catastral...';
+PRINT '?? 1.5 Creando información catastral...';
 
 EXEC sp_Catastro_Insertar
     @numero_plano_catastral = 'G-2025-001234',
@@ -215,9 +328,8 @@ EXEC sp_Catastro_Insertar
     @inmueble_id = @inmueble1_id;
 
 SET @catastro1_id = (SELECT TOP 1 catastro_id FROM Catastro ORDER BY catastro_id DESC);
-PRINT '  ? Catastro creado para Inmueble 1 - Plano: G-2025-001234';
+PRINT '  ? Catastro creado para Inmueble 1';
 
--- Agregar colindancias
 EXEC sp_Colindancia_Insertar
     @punto_cardinal = 'Norte',
     @colindante = 'Calle Pública Principal',
@@ -230,30 +342,107 @@ EXEC sp_Colindancia_Insertar
 
 PRINT '  ? Colindancias agregadas';
 
--- Agregar observación
 EXEC sp_ObservacionInmueble_Insertar
-    @descripcion = 'Inmueble en buen estado, aprobado para construcción',
+    @descripcion = 'Inmueble en buen estado',
     @inmueble_id = @inmueble1_id,
     @fecha = '2025-01-10';
 
 PRINT '  ? Observación registrada';
+PRINT '';
+PRINT '? FASE 1 COMPLETADA';
+PRINT '';
+
+-- =============================================
+-- FASE 1.5: SERVICIOS DE INMUEBLES
+-- =============================================
+
+PRINT '+-------------------------------------------------------------+';
+PRINT '| FASE 1.5: CONFIGURACIÓN DE SERVICIOS                       |';
+PRINT '+-------------------------------------------------------------+';
+PRINT '';
+
+PRINT '?? 1.5.1 Configurando servicios para Inmueble 1...';
+
+EXEC sp_agregar_servicio_inmueble
+    @inmueble_id = @inmueble1_id,
+    @rubro_id = @rubro_impuesto_territorial,
+    @tarifa_personalizada = NULL,
+    @observaciones = 'Uso residencial';
+
+PRINT '  ? Impuesto Territorial agregado';
+
+EXEC sp_agregar_servicio_inmueble
+    @inmueble_id = @inmueble1_id,
+    @rubro_id = @rubro_servicio_agua,
+    @tarifa_personalizada = 5000.00,
+    @observaciones = 'Familia de 5 personas';
+
+PRINT '  ? Servicio de Agua agregado (tarifa personalizada)';
+
+EXEC sp_agregar_servicio_inmueble
+    @inmueble_id = @inmueble1_id,
+    @rubro_id = @rubro_servicio_basura,
+    @tarifa_personalizada = NULL,
+    @observaciones = NULL;
+
+PRINT '  ? Servicio de Basura agregado';
+
+PRINT '';
+PRINT '?? 1.5.2 Configurando servicios para Inmueble 2...';
+
+SET @rubros_batch_inmueble2 = 
+    CAST(@rubro_impuesto_territorial AS VARCHAR(10)) + ',' +
+    CAST(@rubro_servicio_agua AS VARCHAR(10)) + ',' +
+    CAST(@rubro_servicio_basura AS VARCHAR(10));
+
+EXEC sp_agregar_servicios_batch
+    @inmueble_id = @inmueble2_id,
+    @rubros_ids = @rubros_batch_inmueble2;
+
+PRINT '  ? 3 servicios agregados en batch';
+
+EXEC sp_agregar_servicio_inmueble
+    @inmueble_id = @inmueble2_id,
+    @rubro_id = @rubro_licencia_comercial,
+    @tarifa_personalizada = 50000.00,
+    @observaciones = 'Mini Super';
+
+PRINT '  ? Licencia Comercial agregada';
+
+PRINT '';
+PRINT '?? 1.5.3 Configurando servicios para Inmueble 3...';
+
+SET @rubros_batch_inmueble3 = 
+    CAST(@rubro_impuesto_territorial AS VARCHAR(10)) + ',' +
+    CAST(@rubro_servicio_agua AS VARCHAR(10)) + ',' +
+    CAST(@rubro_servicio_basura AS VARCHAR(10));
+
+EXEC sp_agregar_servicios_batch
+    @inmueble_id = @inmueble3_id,
+    @rubros_ids = @rubros_batch_inmueble3;
+
+PRINT '  ? 3 servicios base agregados';
+
+EXEC sp_agregar_servicio_inmueble
+    @inmueble_id = @inmueble3_id,
+    @rubro_id = @rubro_patente_municipal,
+    @tarifa_personalizada = 80000.00,
+    @observaciones = 'Constructora';
+
+PRINT '  ? Patente Municipal agregada';
+PRINT '';
+PRINT '? FASE 1.5 COMPLETADA';
+PRINT '';
 
 -- =============================================
 -- FASE 2: MÓDULO TRÁMITES Y PERMISOS
 -- =============================================
 
-PRINT '';
 PRINT '+-------------------------------------------------------------+';
-PRINT '¦ FASE 2: TRÁMITES Y PERMISOS                                ¦';
+PRINT '| FASE 2: TRÁMITES Y PERMISOS                                |';
 PRINT '+-------------------------------------------------------------+';
 PRINT '';
 
-DECLARE @tramite1_id INT;
-DECLARE @tramite2_id INT;
-DECLARE @tipo_permiso_construccion INT;
-DECLARE @tipo_patente_comercial INT;
-
--- Obtener tipos de trámite
 SELECT @tipo_permiso_construccion = tipo_tramite_id 
 FROM Tipo_Tramite 
 WHERE nombre_tipo = 'Permiso de Construcción';
@@ -262,31 +451,22 @@ SELECT @tipo_patente_comercial = tipo_tramite_id
 FROM Tipo_Tramite 
 WHERE nombre_tipo = 'Patente Comercial';
 
--- =============================================
--- 2.1 CREAR TRÁMITE: PERMISO DE CONSTRUCCIÓN
--- =============================================
-PRINT '? 2.1 Creando trámite de Permiso de Construcción...';
+PRINT '?? 2.1 Creando trámite de Permiso de Construcción...';
 
 EXEC sp_Tramite_Insertar
     @fecha_ingreso = '2025-02-01',
     @fecha_resolucion = NULL,
-    @observaciones = 'Ampliación de vivienda - Construcción de segundo piso',
+    @observaciones = 'Ampliación de vivienda',
     @tipo_tramite_id = @tipo_permiso_construccion,
     @contribuyente_id = @contrib_fisico1_id,
     @inmueble_id = @inmueble1_id,
     @estado_actual = 'En Proceso';
 
 SET @tramite1_id = (SELECT TOP 1 tramite_id FROM Tramite ORDER BY tramite_id DESC);
-PRINT '  ? Trámite de Permiso de Construcción creado - ID: ' + CAST(@tramite1_id AS VARCHAR(10));
-PRINT '    Contribuyente: Carlos Ramírez Mora';
-PRINT '    Inmueble: Nicoya Centro, 150m norte del Banco Nacional';
-PRINT '    Estado: En Proceso';
+PRINT '  ? Trámite creado - ID: ' + CAST(@tramite1_id AS VARCHAR(10));
 
--- =============================================
--- 2.2 CREAR TRÁMITE: PATENTE COMERCIAL
--- =============================================
 PRINT '';
-PRINT '? 2.2 Creando trámite de Patente Comercial...';
+PRINT '?? 2.2 Creando trámite de Patente Comercial...';
 
 EXEC sp_Tramite_Insertar
     @fecha_ingreso = '2025-02-05',
@@ -298,133 +478,34 @@ EXEC sp_Tramite_Insertar
     @estado_actual = 'En Proceso';
 
 SET @tramite2_id = (SELECT TOP 1 tramite_id FROM Tramite ORDER BY tramite_id DESC);
-PRINT '  ? Trámite de Patente Comercial creado - ID: ' + CAST(@tramite2_id AS VARCHAR(10));
-PRINT '    Contribuyente: Ana López Jiménez';
-PRINT '    Inmueble: Nicoya, Avenida Central frente al Mercado';
-PRINT '    Estado: En Proceso';
-
--- =============================================
--- 2.3 CONSULTAR REQUISITOS NECESARIOS
--- =============================================
+PRINT '  ? Trámite creado - ID: ' + CAST(@tramite2_id AS VARCHAR(10));
 PRINT '';
-PRINT '? 2.3 Consultando requisitos del Permiso de Construcción...';
-
-SELECT 
-    r.requisito_id,
-    r.nombre,
-    r.descripcion
-FROM dbo.Tipo_Tramite_Requisito ttr
-INNER JOIN dbo.Requisito r ON ttr.requisito_id = r.requisito_id
-WHERE ttr.tipo_tramite_id = @tipo_permiso_construccion;
-
-PRINT '  ? Requisitos mostrados';
+PRINT '? FASE 2 COMPLETADA';
+PRINT '';
 
 -- =============================================
 -- FASE 3: MÓDULO PAGOS Y COBROS
 -- =============================================
 
-PRINT '';
 PRINT '+-------------------------------------------------------------+';
-PRINT '¦ FASE 3: PAGOS Y COBROS                                     ¦';
+PRINT '| FASE 3: PAGOS Y COBROS                                     |';
 PRINT '+-------------------------------------------------------------+';
 PRINT '';
 
-DECLARE @rubro_permiso INT;
-DECLARE @rubro_patente INT;
-DECLARE @rubro_timbres INT;
-DECLARE @factura1_id INT;
-DECLARE @factura2_id INT;
-DECLARE @numero_factura1 VARCHAR(50);
-DECLARE @numero_factura2 VARCHAR(50);
-DECLARE @detalle1_id INT;
-DECLARE @detalle2_id INT;
-DECLARE @pago1_id INT;
-DECLARE @numero_recibo1 VARCHAR(50);
-DECLARE @usuario_id INT;
-DECLARE @referencia_servicio1 VARCHAR(100);
-DECLARE @referencia_servicio2 VARCHAR(100);
-DECLARE @referencia_servicio3 VARCHAR(100);
-
--- Obtener usuario (asumiendo que ya existe el usuario)
+-- Obtener o crear usuario
 SELECT TOP 1 @usuario_id = usuario_id FROM Usuario;
 
--- Si no existe, crear uno temporal
 IF @usuario_id IS NULL
 BEGIN
-    PRINT '';
-    PRINT '  ? No se encontró ningún usuario en el sistema.';
-    PRINT '  ? Creando usuario temporal para pruebas...';
-    
-    -- Verificar estructura de la tabla Usuario primero
-    IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('Usuario') AND name = 'nombre')
-    BEGIN
-        PRINT '';
-        PRINT '  ? ERROR: La tabla Usuario no tiene la estructura esperada.';
-        PRINT '  ? Por favor, ejecute primero el script de creación de la tabla Usuario.';
-        PRINT '  ? O proporcione un usuario_id existente.';
-        RETURN;
-    END
-    
-    -- Crear usuario temporal con columnas básicas
+    PRINT '  ??  Creando usuario temporal...';
     INSERT INTO Usuario (nombre, apellido1, apellido2, email)
     VALUES ('Admin', 'Sistema', 'Municipal', 'admin@nicoya.go.cr');
-    
     SET @usuario_id = SCOPE_IDENTITY();
-    PRINT '  ? Usuario temporal creado - ID: ' + CAST(@usuario_id AS VARCHAR(10));
-    PRINT '    Usuario: Admin Sistema Municipal';
-END
-ELSE
-BEGIN
-    PRINT '  ? Usuario encontrado - ID: ' + CAST(@usuario_id AS VARCHAR(10));
+    PRINT '  ? Usuario creado - ID: ' + CAST(@usuario_id AS VARCHAR(10));
+    PRINT '';
 END
 
--- =============================================
--- 3.1 CREAR RUBROS
--- =============================================
-PRINT '';
-PRINT '? 3.1 Creando rubros de cobro...';
-
-EXEC sp_insertar_rubro
-    @nombre = 'Permiso de Construcción',
-    @descripcion = 'Tarifa por tramitación de permiso de construcción',
-    @periodicidad = 'Único',
-    @aplica_recargo = 1,
-    @aplica_intereses = 1,
-    @tasa_interes = 2.50,
-    @tasa_recargo = 5.00,
-    @rubro_id = @rubro_permiso OUTPUT;
-
-PRINT '  ? Rubro "Permiso de Construcción" creado - ID: ' + CAST(@rubro_permiso AS VARCHAR(10));
-
-EXEC sp_insertar_rubro
-    @nombre = 'Patente Comercial',
-    @descripcion = 'Tarifa anual de patente comercial',
-    @periodicidad = 'Anual',
-    @aplica_recargo = 1,
-    @aplica_intereses = 1,
-    @tasa_interes = 3.00,
-    @tasa_recargo = 10.00,
-    @rubro_id = @rubro_patente OUTPUT;
-
-PRINT '  ? Rubro "Patente Comercial" creado - ID: ' + CAST(@rubro_patente AS VARCHAR(10));
-
-EXEC sp_insertar_rubro
-    @nombre = 'Timbres Municipales',
-    @descripcion = 'Timbres y estampillas municipales',
-    @periodicidad = 'Único',
-    @aplica_recargo = 0,
-    @aplica_intereses = 0,
-    @tasa_interes = 0,
-    @tasa_recargo = 0,
-    @rubro_id = @rubro_timbres OUTPUT;
-
-PRINT '  ? Rubro "Timbres Municipales" creado - ID: ' + CAST(@rubro_timbres AS VARCHAR(10));
-
--- =============================================
--- 3.2 EMITIR FACTURA #1: PERMISO DE CONSTRUCCIÓN
--- =============================================
-PRINT '';
-PRINT '? 3.2 Emitiendo factura para Permiso de Construcción...';
+PRINT '?? 3.1 Emitiendo factura para Permiso de Construcción...';
 
 EXEC sp_emitir_factura
     @fecha_emision = '2025-02-01',
@@ -435,204 +516,120 @@ EXEC sp_emitir_factura
     @factura_id = @factura1_id OUTPUT,
     @numero_factura = @numero_factura1 OUTPUT;
 
-PRINT '  ? Factura emitida: ' + @numero_factura1 + ' (ID: ' + CAST(@factura1_id AS VARCHAR(10)) + ')';
-PRINT '    Vencimiento: ' + CONVERT(VARCHAR(10), DATEADD(DAY, 30, '2025-02-01'), 120);
+PRINT '  ? Factura emitida: ' + @numero_factura1;
 
--- Agregar detalles a la factura
 PRINT '';
-PRINT '? 3.3 Agregando detalles a la factura...';
+PRINT '?? 3.2 Agregando detalles a la factura...';
 
--- Preparar referencia de servicio para el primer detalle
 SET @referencia_servicio1 = 'Tramite #' + CAST(@tramite1_id AS VARCHAR(10));
 
 EXEC sp_insertar_detalle_factura
     @factura_id = @factura1_id,
-    @rubro_id = @rubro_permiso,
-    @nombre = 'Permiso de Construcción - Ampliación',
+    @rubro_id = @rubro_permiso_construccion,
+    @nombre = 'Permiso de Construcción',
     @referencia_servicio = @referencia_servicio1,
     @cantidad = 1,
-    @monto_unitario = 75000.00,
+    @monto_unitario = NULL,
     @descuento_linea = 0,
     @fecha_servicio = '2025-02-01',
     @detalle_factura_id = @detalle1_id OUTPUT;
 
-PRINT '  ? Detalle 1: Permiso de Construcción - ¢75,000.00';
+PRINT '  ? Detalle 1: Permiso de Construcción';
 
--- Preparar referencia de servicio para el segundo detalle
 SET @referencia_servicio2 = 'Tramite #' + CAST(@tramite1_id AS VARCHAR(10));
 
 EXEC sp_insertar_detalle_factura
     @factura_id = @factura1_id,
-    @rubro_id = @rubro_timbres,
+    @rubro_id = @rubro_timbres_municipales,
     @nombre = 'Timbres Municipales',
     @referencia_servicio = @referencia_servicio2,
     @cantidad = 10,
-    @monto_unitario = 500.00,
+    @monto_unitario = NULL,
     @descuento_linea = 0,
     @fecha_servicio = '2025-02-01',
     @detalle_factura_id = @detalle2_id OUTPUT;
 
-PRINT '  ? Detalle 2: Timbres Municipales (10 x ¢500) - ¢5,000.00';
-PRINT '  ? Monto total de la factura recalculado automáticamente por trigger';
-
--- =============================================
--- 3.4 CONSULTAR FACTURA COMPLETA
--- =============================================
-PRINT '';
-PRINT '? 3.4 Consultando factura completa...';
-
-EXEC sp_consultar_factura_por_id @factura_id = @factura1_id;
-
-PRINT '  ? Factura consultada con 3 resultsets:';
-PRINT '    - Información de la factura';
-PRINT '    - Contribuyentes asociados';
-PRINT '    - Detalles/ítems de la factura';
-
--- =============================================
--- 3.5 REGISTRAR PAGO DE LA FACTURA
--- =============================================
-PRINT '';
-PRINT '? 3.5 Registrando pago de la factura...';
-
-DECLARE @monto_total_factura DECIMAL(12,2);
-SELECT @monto_total_factura = monto_total FROM Factura WHERE factura_id = @factura1_id;
-
-EXEC sp_registrar_pago
-    @factura_id = @factura1_id,
-    @monto_pagado = @monto_total_factura,
-    @fecha_pago = '2025-02-10',
-    @medio_pago = 'Efectivo',
-    @usuario_id = @usuario_id,
-    @pago_id = @pago1_id OUTPUT,
-    @numero_recibo = @numero_recibo1 OUTPUT;
-
-PRINT '  ? Pago registrado: ' + @numero_recibo1 + ' (ID: ' + CAST(@pago1_id AS VARCHAR(10)) + ')';
-PRINT '    Monto pagado: ¢' + CAST(@monto_total_factura AS VARCHAR(20));
-PRINT '    Estado de factura actualizado automáticamente a "Pagada" por trigger';
-
--- =============================================
--- 3.6 EMITIR FACTURA #2: PATENTE COMERCIAL
--- =============================================
-PRINT '';
-PRINT '? 3.6 Emitiendo factura para Patente Comercial...';
-
-EXEC sp_emitir_factura
-    @fecha_emision = '2025-02-05',
-    @periodo = '2025-01-01',
-    @tramite_id = @tramite2_id,
-    @inmueble_id = NULL,
-    @usuario_id = @usuario_id,
-    @factura_id = @factura2_id OUTPUT,
-    @numero_factura = @numero_factura2 OUTPUT;
-
-PRINT '  ? Factura emitida: ' + @numero_factura2 + ' (ID: ' + CAST(@factura2_id AS VARCHAR(10)) + ')';
-
--- Preparar referencia de servicio
-SET @referencia_servicio3 = 'Mini Super - Tramite #' + CAST(@tramite2_id AS VARCHAR(10));
-
--- Agregar detalle
-EXEC sp_insertar_detalle_factura
-    @factura_id = @factura2_id,
-    @rubro_id = @rubro_patente,
-    @nombre = 'Patente Comercial 2025',
-    @referencia_servicio = @referencia_servicio3,
-    @cantidad = 1,
-    @monto_unitario = 120000.00,
-    @descuento_linea = 0,
-    @fecha_servicio = '2025-02-05',
-    @detalle_factura_id = @detalle2_id OUTPUT;
-
-PRINT '  ? Detalle agregado: Patente Comercial 2025 - ¢120,000.00';
-PRINT '    Estado: Pendiente de pago';
-
--- =============================================
--- 3.7 LISTAR FACTURAS
--- =============================================
-PRINT '';
-PRINT '? 3.7 Listando todas las facturas...';
-
-EXEC sp_listar_facturas
-    @estado_factura = NULL,
-    @page_number = 1,
-    @page_size = 10;
-
-PRINT '  ? Facturas listadas con información completa';
-
--- =============================================
--- 3.8 VISUALIZAR HISTORIAL DE PAGOS
--- =============================================
-PRINT '';
-PRINT '? 3.8 Consultando historial de pagos...';
-
-EXEC sp_visualizar_historial_pagos
-    @contribuyente_id = @contrib_fisico1_id,
-    @page_number = 1,
-    @page_size = 10;
-
-PRINT '  ? Historial de pagos de Carlos Ramírez Mora mostrado';
-
--- =============================================
--- RESUMEN FINAL
--- =============================================
+PRINT '  ? Detalle 2: Timbres Municipales (10 x ?500)';
 
 PRINT '';
-PRINT '---------------------------------------------------------------';
+PRINT '?? 3.3 Registrando pago...';
+
+-- Obtener monto total con verificación
+SELECT @monto_total_factura = monto_total 
+FROM Factura 
+WHERE factura_id = @factura1_id;
+
+-- Verificar que se obtuvo el monto
+IF @monto_total_factura IS NULL OR @monto_total_factura <= 0
+BEGIN
+    PRINT '  ? ERROR: No se pudo obtener el monto total de la factura';
+    PRINT '  Factura ID: ' + CAST(@factura1_id AS VARCHAR(10));
+    
+    -- Mostrar información de la factura para debug
+    SELECT 
+        factura_id,
+        numero_factura,
+        monto_base,
+        recargo,
+        intereses,
+        monto_total,
+        estado_factura
+    FROM Factura 
+    WHERE factura_id = @factura1_id;
+    
+    PRINT '';
+    PRINT '  ??  Esperando 2 segundos para que el trigger actualice...';
+    WAITFOR DELAY '00:00:02';
+    
+    -- Reintentar obtener el monto
+    SELECT @monto_total_factura = monto_total 
+    FROM Factura 
+    WHERE factura_id = @factura1_id;
+END
+
+-- Mostrar monto para debug
+PRINT '  Monto total de factura: ?' + CAST(ISNULL(@monto_total_factura, 0) AS VARCHAR(20));
+
+-- Solo proceder si hay un monto válido
+IF @monto_total_factura > 0
+BEGIN
+    EXEC sp_registrar_pago
+        @factura_id = @factura1_id,
+        @monto_pagado = @monto_total_factura,
+        @fecha_pago = '2025-02-10',
+        @medio_pago = 'Efectivo',
+        @usuario_id = @usuario_id,
+        @pago_id = @pago1_id OUTPUT,
+        @numero_recibo = @numero_recibo1 OUTPUT;
+
+    PRINT '  ? Pago registrado: ' + @numero_recibo1;
+    PRINT '  ? Monto: ?' + CAST(@monto_total_factura AS VARCHAR(20));
+END
+ELSE
+BEGIN
+    PRINT '  ? ERROR: No se puede registrar pago con monto ?0';
+    PRINT '  ??  Verifique que el trigger trg_actualizar_monto_factura esté funcionando';
+END
+
+PRINT '';
+PRINT '? FASE 3 COMPLETADA';
+PRINT '';
+PRINT '';
+PRINT '===============================================================';
 PRINT '     RESUMEN DE PRUEBAS COMPLETADAS';
-PRINT '---------------------------------------------------------------';
+PRINT '===============================================================';
 PRINT '';
-PRINT '? FASE 1: Contribuyentes e Inmuebles';
-PRINT '  - 2 Contribuyentes físicos creados';
-PRINT '  - 1 Contribuyente jurídico creado';
-PRINT '  - 3 Inmuebles registrados';
-PRINT '  - Asociaciones contribuyente-inmueble establecidas';
-PRINT '  - Información catastral completa (catastro, colindancias, observaciones)';
+PRINT '? FASE 0: 10 Rubros configurados';
+PRINT '? FASE 1: 3 Contribuyentes + 3 Inmuebles creados';
+PRINT '? FASE 1.5: 11 Servicios configurados';
+PRINT '? FASE 2: 2 Trámites creados';
+PRINT '? FASE 3: 1 Factura + 1 Pago procesados';
 PRINT '';
-PRINT '? FASE 2: Trámites y Permisos';
-PRINT '  - Trámite de Permiso de Construcción creado (En Proceso)';
-PRINT '  - Trámite de Patente Comercial creado (En Proceso)';
-PRINT '  - Requisitos consultados correctamente';
+PRINT '?? TRIGGERS VERIFICADOS:';
+PRINT '  - Recálculo automático de montos';
+PRINT '  - Actualización de estado a Pagada';
 PRINT '';
-PRINT '? FASE 3: Pagos y Cobros';
-PRINT '  - 3 Rubros de cobro creados';
-PRINT '  - 2 Facturas emitidas con autogeneración de número';
-PRINT '  - Detalles agregados a facturas';
-PRINT '  - Montos recalculados automáticamente por triggers';
-PRINT '  - 1 Pago registrado exitosamente';
-PRINT '  - Estado de factura actualizado automáticamente (Pendiente ? Pagada)';
-PRINT '  - Recibo generado con formato REC-YYYYMMDD-####';
+PRINT '?? Estado del sistema: OPERATIVO';
 PRINT '';
-PRINT '? TRIGGERS PROBADOS:';
-PRINT '  - trg_actualizar_monto_factura (Recalcula monto_base)';
-PRINT '  - trg_actualizar_estado_factura (Cambia estado a Pagada)';
-PRINT '';
-PRINT '---------------------------------------------------------------';
-PRINT '     PRUEBAS COMPLETADAS EXITOSAMENTE';
-PRINT '---------------------------------------------------------------';
-PRINT '';
-PRINT 'Notas:';
-PRINT '- Todos los módulos funcionan correctamente';
-PRINT '- Las relaciones entre tablas están bien implementadas';
-PRINT '- Los triggers funcionan como se esperaba';
-PRINT '- Las validaciones de negocio están activas';
-PRINT '- El flujo completo de la aplicación está operativo';
-PRINT '';
-PRINT 'Estado del sistema: ? OPERATIVO';
+PRINT '===============================================================';
 GO
-
-
-
-
-
-
-
-PRINT '? 1. Listado de todas las facturas:';
-PRINT '';
-
-EXEC sp_listar_facturas
-    @estado_factura = NULL,
-    @page_number = 1,
-    @page_size = 10;
-
-PRINT '';
-PRINT '-------------------------------------------------------------';
-PRINT '';

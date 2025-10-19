@@ -121,9 +121,13 @@ USE MunicipalidadNicoya;
 GO
 
 -- =============================================
--- SP1: sp_insertar_rubro
+-- SP1: sp_insertar_rubro (CORREGIDO)
 -- Descripción: Inserta un nuevo rubro en el sistema
 -- =============================================
+
+USE MunicipalidadNicoya;
+GO
+
 IF OBJECT_ID('dbo.sp_insertar_rubro', 'P') IS NOT NULL
     DROP PROCEDURE dbo.sp_insertar_rubro;
 GO
@@ -132,6 +136,7 @@ CREATE PROCEDURE dbo.sp_insertar_rubro
     @nombre VARCHAR(100),
     @descripcion VARCHAR(300) = NULL,
     @periodicidad VARCHAR(20) = NULL,
+    @tarifa_base DECIMAL(12,2) = 0,  -- ✅ AGREGADO
     @aplica_recargo BIT = 0,
     @aplica_intereses BIT = 0,
     @tasa_interes DECIMAL(5,2) = 0,
@@ -162,6 +167,12 @@ BEGIN
             THROW 50003, 'La periodicidad debe ser: Mensual, Trimestral, Anual o Único.', 1;
         END
         
+        -- ✅ Validar tarifa_base >= 0
+        IF @tarifa_base < 0
+        BEGIN
+            THROW 50008, 'La tarifa base no puede ser negativa.', 1;
+        END
+        
         -- Validar tasa de interés
         IF @tasa_interes < 0 OR @tasa_interes > 100
         BEGIN
@@ -178,7 +189,8 @@ BEGIN
         INSERT INTO dbo.Rubro (
             nombre, 
             descripcion, 
-            periodicidad, 
+            periodicidad,
+            tarifa_base,  -- ✅ AGREGADO
             vigencia,
             aplica_recargo, 
             aplica_intereses, 
@@ -189,6 +201,7 @@ BEGIN
             @nombre,
             @descripcion,
             @periodicidad,
+            @tarifa_base,  -- ✅ AGREGADO
             1, -- Vigencia activa por defecto
             @aplica_recargo,
             @aplica_intereses,
@@ -214,7 +227,7 @@ BEGIN
 END
 GO
 
-PRINT '✓ SP: sp_insertar_rubro creado';
+PRINT '✅ SP: sp_insertar_rubro CORREGIDO - Ahora incluye @tarifa_base';
 GO
 
 -- =============================================
@@ -267,8 +280,7 @@ GO
 -- SP3: sp_listar_rubros
 -- Descripción: Lista rubros con filtros y paginación
 -- =============================================
-IF OBJECT_ID('dbo.sp_listar_rubros', 'P') IS NOT NULL
-    DROP PROCEDURE dbo.sp_listar_rubros;
+DROP PROCEDURE IF EXISTS dbo.sp_listar_rubros;
 GO
 
 CREATE PROCEDURE dbo.sp_listar_rubros
@@ -302,12 +314,13 @@ BEGIN
             AND (@periodicidad IS NULL OR periodicidad = @periodicidad)
             AND (@nombre_busqueda IS NULL OR nombre LIKE '%' + @nombre_busqueda + '%');
         
-        -- Retornar registros paginados con total
+        -- ✅ AGREGAR tarifa_base al SELECT
         SELECT 
             rubro_id,
             nombre,
             descripcion,
             periodicidad,
+            tarifa_base,  -- ✅ AGREGADO
             vigencia,
             aplica_recargo,
             aplica_intereses,
@@ -334,15 +347,23 @@ BEGIN
 END
 GO
 
-PRINT '✓ SP: sp_listar_rubros creado';
+PRINT '✅ sp_listar_rubros CORREGIDO - Ahora incluye tarifa_base en SELECT';
 GO
 
+
+
+
+
 -- =============================================
--- SP4: sp_actualizar_rubro
+-- SP MEJORADO: sp_actualizar_rubro
 -- Descripción: Actualiza datos de un rubro (incluye reactivación)
+-- MEJORA: Agregado parámetro @tarifa_base para actualizar
 -- =============================================
-IF OBJECT_ID('dbo.sp_actualizar_rubro', 'P') IS NOT NULL
-    DROP PROCEDURE dbo.sp_actualizar_rubro;
+
+USE MunicipalidadNicoya;
+GO
+
+DROP PROCEDURE IF EXISTS dbo.sp_actualizar_rubro;
 GO
 
 CREATE PROCEDURE dbo.sp_actualizar_rubro
@@ -350,6 +371,7 @@ CREATE PROCEDURE dbo.sp_actualizar_rubro
     @nombre VARCHAR(100) = NULL,
     @descripcion VARCHAR(300) = NULL,
     @periodicidad VARCHAR(20) = NULL,
+    @tarifa_base DECIMAL(12,2) = NULL, 
     @vigencia BIT = NULL,
     @aplica_recargo BIT = NULL,
     @aplica_intereses BIT = NULL,
@@ -362,13 +384,31 @@ BEGIN
     BEGIN TRY
         BEGIN TRANSACTION;
         
-        -- Validar que el rubro existe
+        -- =============================================
+        -- VALIDACIONES BÁSICAS
+        -- =============================================
+        
+        -- 1. Validar que el rubro existe
         IF NOT EXISTS (SELECT 1 FROM dbo.Rubro WHERE rubro_id = @rubro_id)
         BEGIN
             THROW 50006, 'No existe un rubro con el ID especificado.', 1;
         END
         
-        -- Validar nombre no duplicado (si se está actualizando)
+        -- 2. Obtener datos actuales del rubro
+        DECLARE @nombre_actual VARCHAR(100);
+        DECLARE @tarifa_base_actual DECIMAL(12,2);
+        
+        SELECT 
+            @nombre_actual = nombre,
+            @tarifa_base_actual = tarifa_base
+        FROM dbo.Rubro 
+        WHERE rubro_id = @rubro_id;
+        
+        -- =============================================
+        -- VALIDACIONES DE DATOS
+        -- =============================================
+        
+        -- 3. Validar nombre no duplicado (si se está actualizando)
         IF @nombre IS NOT NULL AND LTRIM(RTRIM(@nombre)) != ''
         BEGIN
             IF EXISTS (SELECT 1 FROM dbo.Rubro WHERE nombre = @nombre AND rubro_id != @rubro_id)
@@ -377,30 +417,85 @@ BEGIN
             END
         END
         
-        -- Validar periodicidad (si se está actualizando)
+        -- 4. Validar periodicidad (si se está actualizando)
         IF @periodicidad IS NOT NULL AND @periodicidad NOT IN ('Mensual', 'Trimestral', 'Anual', 'Único')
         BEGIN
             THROW 50003, 'La periodicidad debe ser: Mensual, Trimestral, Anual o Único.', 1;
         END
         
-        -- Validar tasa de interés (si se está actualizando)
+        -- ✅ 5. Validar tarifa_base >= 0 (si se está actualizando)
+        IF @tarifa_base IS NOT NULL AND @tarifa_base < 0
+        BEGIN
+            THROW 50008, 'La tarifa base no puede ser negativa.', 1;
+        END
+        
+        -- 6. Validar tasa de interés (si se está actualizando)
         IF @tasa_interes IS NOT NULL AND (@tasa_interes < 0 OR @tasa_interes > 100)
         BEGIN
             THROW 50004, 'La tasa de interés debe estar entre 0 y 100.', 1;
         END
         
-        -- Validar tasa de recargo (si se está actualizando)
+        -- 7. Validar tasa de recargo (si se está actualizando)
         IF @tasa_recargo IS NOT NULL AND (@tasa_recargo < 0 OR @tasa_recargo > 100)
         BEGIN
             THROW 50005, 'La tasa de recargo debe estar entre 0 y 100.', 1;
         END
         
-        -- Actualizar solo los campos que no sean NULL
+        -- =============================================
+        -- VALIDACIONES DE NEGOCIO
+        -- =============================================
+        
+        -- 8. Advertir si se cambia tarifa_base y hay servicios activos usando este rubro
+        IF @tarifa_base IS NOT NULL AND @tarifa_base != @tarifa_base_actual
+        BEGIN
+            DECLARE @servicios_activos INT;
+            
+            SELECT @servicios_activos = COUNT(*)
+            FROM dbo.Servicio_Inmueble
+            WHERE rubro_id = @rubro_id 
+              AND activo = 1
+              AND tarifa_personalizada IS NULL;  -- Solo los que usan tarifa_base
+            
+            IF @servicios_activos > 0
+            BEGIN
+                PRINT '';
+                PRINT '    ADVERTENCIA: Este rubro tiene ' + CAST(@servicios_activos AS VARCHAR(10)) + 
+                      ' servicio(s) activo(s) usando la tarifa base.';
+                PRINT '     Tarifa actual: ₡' + CAST(@tarifa_base_actual AS VARCHAR(20));
+                PRINT '     Nueva tarifa: ₡' + CAST(@tarifa_base AS VARCHAR(20));
+                PRINT '     Los servicios SIN tarifa personalizada usarán la nueva tarifa en las próximas facturas.';
+                PRINT '';
+            END
+        END
+        
+        -- 9. Advertir si se desactiva (vigencia = 0) y hay servicios activos
+        IF @vigencia = 0
+        BEGIN
+            IF EXISTS (
+                SELECT 1 
+                FROM dbo.Servicio_Inmueble 
+                WHERE rubro_id = @rubro_id AND activo = 1
+            )
+            BEGIN
+                PRINT '';
+                PRINT '    ADVERTENCIA: Este rubro tiene servicios activos asociados.';
+                PRINT '     Al desactivarlo, NO se podrán crear nuevos servicios con este rubro.';
+                PRINT '     Los servicios existentes mantendrán su configuración actual.';
+                PRINT '';
+            END
+        END
+        
+        -- =============================================
+        -- ACTUALIZACIÓN DEL RUBRO
+        -- =============================================
+        
+        -- Actualizar solo los campos que no sean NULL (actualización selectiva)
         UPDATE dbo.Rubro
         SET
             nombre = ISNULL(@nombre, nombre),
             descripcion = CASE WHEN @descripcion IS NOT NULL THEN @descripcion ELSE descripcion END,
             periodicidad = CASE WHEN @periodicidad IS NOT NULL THEN @periodicidad ELSE periodicidad END,
+            tarifa_base = ISNULL(@tarifa_base, tarifa_base),  -- ✅ AGREGADO
             vigencia = ISNULL(@vigencia, vigencia),
             aplica_recargo = ISNULL(@aplica_recargo, aplica_recargo),
             aplica_intereses = ISNULL(@aplica_intereses, aplica_intereses),
@@ -410,11 +505,47 @@ BEGIN
         
         COMMIT TRANSACTION;
         
-        -- Mensaje de éxito
+        -- =============================================
+        -- MENSAJES DE ÉXITO
+        -- =============================================
+        
+        PRINT '';
+        PRINT '✅ Rubro actualizado exitosamente';
+        PRINT '   ID: ' + CAST(@rubro_id AS VARCHAR(10));
+        PRINT '   Nombre: ' + ISNULL(@nombre, @nombre_actual);
+        
+        IF @tarifa_base IS NOT NULL
+        BEGIN
+            PRINT '   Tarifa base actualizada: ₡' + CAST(@tarifa_base AS VARCHAR(20)) + 
+                  ' (anterior: ₡' + CAST(@tarifa_base_actual AS VARCHAR(20)) + ')';
+        END
+        
         IF @vigencia = 1
-            PRINT 'Rubro actualizado y reactivado exitosamente.';
-        ELSE
-            PRINT 'Rubro actualizado exitosamente.';
+        BEGIN
+            PRINT '   Estado: Reactivado';
+        END
+        ELSE IF @vigencia = 0
+        BEGIN
+            PRINT '   Estado: Desactivado';
+        END
+        
+        PRINT '';
+        
+        -- Retornar el rubro actualizado
+        SELECT 
+            rubro_id,
+            nombre,
+            descripcion,
+            periodicidad,
+            tarifa_base,
+            vigencia,
+            aplica_recargo,
+            aplica_intereses,
+            tasa_interes,
+            tasa_recargo,
+            fecha_creacion
+        FROM dbo.Rubro
+        WHERE rubro_id = @rubro_id;
         
     END TRY
     BEGIN CATCH
@@ -426,7 +557,18 @@ BEGIN
 END
 GO
 
-PRINT '✓ SP: sp_actualizar_rubro creado';
+PRINT '';
+PRINT '========================================';
+PRINT '✅ sp_actualizar_rubro MEJORADO';
+PRINT '   Cambios realizados:';
+PRINT '   + Agregado parámetro @tarifa_base';
+PRINT '   + Validación tarifa_base >= 0';
+PRINT '   + Advertencia si hay servicios activos';
+PRINT '   + Advertencia al cambiar tarifa_base';
+PRINT '   + Advertencia al desactivar rubro';
+PRINT '   + Mensajes informativos mejorados';
+PRINT '   + Retorna el rubro actualizado';
+PRINT '========================================';
 GO
 
 -- =============================================
@@ -662,8 +804,7 @@ GO
 -- SP2: sp_consultar_factura_por_id
 -- Descripción: Consulta completa de factura con contribuyentes y detalles
 -- =============================================
-IF OBJECT_ID('dbo.sp_consultar_factura_por_id', 'P') IS NOT NULL
-    DROP PROCEDURE dbo.sp_consultar_factura_por_id;
+DROP PROCEDURE IF EXISTS dbo.sp_consultar_factura_por_id;
 GO
 
 CREATE PROCEDURE dbo.sp_consultar_factura_por_id
@@ -679,9 +820,7 @@ BEGIN
             THROW 50106, 'No existe una factura con el ID especificado.', 1;
         END
         
-        -- ===========================================
         -- RESULTSET 1: Información completa de la factura
-        -- ===========================================
         SELECT 
             f.factura_id,
             f.numero_factura,
@@ -695,33 +834,24 @@ BEGIN
             f.estado_factura,
             f.tramite_id,
             f.inmueble_id,
-            
-            -- Información del Trámite (si tiene)
             t.tipo_tramite_id,
             tt.nombre_tipo AS tipo_tramite_nombre,
             t.estado_actual AS tramite_estado,
             t.fecha_ingreso AS tramite_fecha_ingreso,
-            
-            -- Información del Inmueble (si tiene)
             i.direccion_exacta AS inmueble_direccion,
             i.area_terreno AS inmueble_area,
             i.valor_fiscal AS inmueble_valor_fiscal,
             tui.nombre_uso AS inmueble_tipo_uso,
-            
-            -- Días de mora (calculado)
             CASE 
                 WHEN f.estado_factura IN ('Vencida', 'Pendiente') AND f.fecha_vencimiento < CAST(GETDATE() AS DATE)
                 THEN DATEDIFF(DAY, f.fecha_vencimiento, GETDATE())
                 ELSE 0
             END AS dias_mora,
-            
-            -- Indicador de si está vencida
             CASE 
                 WHEN f.fecha_vencimiento < CAST(GETDATE() AS DATE) AND f.estado_factura = 'Pendiente'
                 THEN 1
                 ELSE 0
             END AS esta_vencida
-            
         FROM dbo.Factura f
         LEFT JOIN dbo.Tramite t ON f.tramite_id = t.tramite_id
         LEFT JOIN dbo.Tipo_Tramite tt ON t.tipo_tramite_id = tt.tipo_tramite_id
@@ -729,11 +859,7 @@ BEGIN
         LEFT JOIN dbo.TipoUsoInmueble tui ON i.tipo_uso_inmueble_id = tui.tipo_uso_inmueble_id
         WHERE f.factura_id = @factura_id;
         
-        
-        -- ===========================================
         -- RESULTSET 2: Contribuyentes asociados
-        -- ===========================================
-        -- Obtener factura para saber si es trámite o inmueble
         DECLARE @tramite_id_factura INT;
         DECLARE @inmueble_id_factura INT;
         
@@ -743,7 +869,7 @@ BEGIN
         FROM dbo.Factura
         WHERE factura_id = @factura_id;
         
-        -- Si es factura por trámite
+        -- ✅ CORREGIDO: Si es factura por trámite
         IF @tramite_id_factura IS NOT NULL
         BEGIN
             SELECT 
@@ -752,26 +878,18 @@ BEGIN
                 c.telefono,
                 c.email,
                 c.direccion,
-                
-                -- Nombre completo (físico o jurídico)
                 CASE 
                     WHEN c.tipo_contribuyente = 'Física' 
-                    THEN cf.nombre + ' ' + cf.apellido1 + ' ' + cf.apellido2
+                    THEN CONCAT(cf.nombre, ' ', cf.apellido1, ' ', ISNULL(cf.apellido2, ''))
                     ELSE cj.nombre_empresa
                 END AS nombre_completo,
-                
-                -- Cédula
                 CASE 
                     WHEN c.tipo_contribuyente = 'Física' 
                     THEN cf.cedula
                     ELSE cj.cedula_juridica
                 END AS cedula,
-                
-                -- Porcentaje propiedad (NULL para trámites)
                 CAST(NULL AS DECIMAL(5,2)) AS porcentaje_propiedad,
-                
                 'Tramite' AS origen
-                
             FROM dbo.Tramite t
             INNER JOIN dbo.Contribuyente c ON t.contribuyente_id = c.contribuyente_id
             LEFT JOIN dbo.Contribuyente_fisico cf ON c.contribuyente_id = cf.contribuyente_id
@@ -779,7 +897,7 @@ BEGIN
             WHERE t.tramite_id = @tramite_id_factura;
         END
         
-        -- Si es factura por inmueble (puede tener múltiples contribuyentes)
+        -- Si es factura por inmueble
         IF @inmueble_id_factura IS NOT NULL
         BEGIN
             SELECT 
@@ -788,26 +906,18 @@ BEGIN
                 c.telefono,
                 c.email,
                 c.direccion,
-                
-                -- Nombre completo (físico o jurídico)
                 CASE 
                     WHEN c.tipo_contribuyente = 'Física' 
-                    THEN cf.nombre + ' ' + cf.apellido1 + ' ' + cf.apellido2
+                    THEN CONCAT(cf.nombre, ' ', cf.apellido1, ' ', ISNULL(cf.apellido2, ''))
                     ELSE cj.nombre_empresa
                 END AS nombre_completo,
-                
-                -- Cédula
                 CASE 
                     WHEN c.tipo_contribuyente = 'Física' 
                     THEN cf.cedula
                     ELSE cj.cedula_juridica
                 END AS cedula,
-                
-                -- Porcentaje propiedad
                 ci.porcentaje_propiedad,
-                
                 'Inmueble' AS origen
-                
             FROM dbo.Contribuyente_Inmueble ci
             INNER JOIN dbo.Contribuyente c ON ci.contribuyente_id = c.contribuyente_id
             LEFT JOIN dbo.Contribuyente_fisico cf ON c.contribuyente_id = cf.contribuyente_id
@@ -816,10 +926,7 @@ BEGIN
             ORDER BY ci.porcentaje_propiedad DESC;
         END
         
-        
-        -- ===========================================
         -- RESULTSET 3: Detalles/ítems de la factura
-        -- ===========================================
         SELECT 
             df.detalle_factura_id,
             df.nombre AS descripcion,
@@ -828,15 +935,10 @@ BEGIN
             df.monto_unitario,
             df.descuento_linea,
             df.fecha_servicio,
-            
-            -- Información del Rubro
             r.rubro_id,
             r.nombre AS rubro_nombre,
             r.periodicidad AS rubro_periodicidad,
-            
-            -- Subtotal del detalle (cantidad * monto_unitario - descuento)
             (df.cantidad * df.monto_unitario - df.descuento_linea) AS subtotal_detalle
-            
         FROM dbo.Detalle_factura df
         INNER JOIN dbo.Rubro r ON df.rubro_id = r.rubro_id
         WHERE df.factura_id = @factura_id
@@ -849,7 +951,7 @@ BEGIN
 END
 GO
 
-PRINT '✓ SP: sp_consultar_factura_por_id creado';
+PRINT '✅ sp_consultar_factura_por_id CORREGIDO - Uso de CONCAT para evitar NULL';
 GO
 
 PRINT '';
@@ -1388,18 +1490,16 @@ GO
 
 
 
-
-
 -- =============================================
--- SP: sp_insertar_detalle_factura
--- Descripción: Agrega un detalle (línea) a una factura existente
+-- SP MEJORADO: sp_insertar_detalle_factura
+-- Descripción: Agrega un detalle a una factura
+-- MEJORA: Si @monto_unitario = NULL, usa tarifa_base del rubro
 -- =============================================
 
 USE MunicipalidadNicoya;
 GO
 
-IF OBJECT_ID('dbo.sp_insertar_detalle_factura', 'P') IS NOT NULL
-    DROP PROCEDURE dbo.sp_insertar_detalle_factura;
+DROP PROCEDURE IF EXISTS dbo.sp_insertar_detalle_factura;
 GO
 
 CREATE PROCEDURE dbo.sp_insertar_detalle_factura
@@ -1408,7 +1508,7 @@ CREATE PROCEDURE dbo.sp_insertar_detalle_factura
     @nombre VARCHAR(100) = NULL,
     @referencia_servicio VARCHAR(100) = NULL,
     @cantidad INT = 1,
-    @monto_unitario DECIMAL(12,2),
+    @monto_unitario DECIMAL(12,2) = NULL,  -- ✅ AHORA OPCIONAL (NULL = usar tarifa_base)
     @descuento_linea DECIMAL(12,2) = 0,
     @fecha_servicio DATE = NULL,
     @detalle_factura_id INT OUTPUT
@@ -1420,7 +1520,7 @@ BEGIN
         BEGIN TRANSACTION;
         
         -- =============================================
-        -- VALIDACIONES
+        -- VALIDACIONES BÁSICAS
         -- =============================================
         
         -- 1. Validar que la factura existe
@@ -1429,7 +1529,7 @@ BEGIN
             THROW 50151, 'La factura especificada no existe', 1;
         END
         
-        -- 2. Validar que la factura esté en estado editable (Pendiente o Vencida)
+        -- 2. Validar estado de la factura
         DECLARE @estado_factura VARCHAR(20);
         SELECT @estado_factura = estado_factura 
         FROM dbo.Factura 
@@ -1440,45 +1540,84 @@ BEGIN
             THROW 50152, 'Solo se pueden agregar detalles a facturas en estado Pendiente o Vencida', 1;
         END
         
-        -- 3. Validar que la factura NO tenga pagos registrados
+        -- 3. Validar que NO tenga pagos
         IF EXISTS (SELECT 1 FROM dbo.Pago WHERE factura_id = @factura_id)
         BEGIN
             THROW 50153, 'No se pueden agregar detalles a una factura que ya tiene pagos registrados', 1;
         END
         
-        -- 4. Validar que el rubro existe y está activo (vigencia = 1)
+        -- 4. Validar que el rubro existe y está activo
         IF NOT EXISTS (SELECT 1 FROM dbo.Rubro WHERE rubro_id = @rubro_id AND vigencia = 1)
         BEGIN
             THROW 50154, 'El rubro especificado no existe o no está activo', 1;
         END
         
-        -- 5. Autocompletar nombre desde Rubro si viene NULL o vacío
+        -- =============================================
+        -- ✅ MEJORA: AUTOCOMPLETAR DATOS DESDE RUBRO
+        -- =============================================
+        
+        DECLARE @rubro_nombre VARCHAR(100);
+        DECLARE @rubro_tarifa_base DECIMAL(12,2);
+        
+        SELECT 
+            @rubro_nombre = nombre,
+            @rubro_tarifa_base = ISNULL(tarifa_base, 0)
+        FROM dbo.Rubro 
+        WHERE rubro_id = @rubro_id AND vigencia = 1;
+        
+        -- Si @nombre viene NULL o vacío, usar nombre del rubro
         IF @nombre IS NULL OR LTRIM(RTRIM(@nombre)) = ''
         BEGIN
-            SELECT @nombre = nombre 
-            FROM dbo.Rubro 
-            WHERE rubro_id = @rubro_id AND vigencia = 1;
+            SET @nombre = @rubro_nombre;
         END
         
-        -- 6. Validar cantidad > 0 (ya está en CHECK de tabla, pero validamos antes)
+        -- ✅ Si @monto_unitario viene NULL, usar tarifa_base del rubro
+        IF @monto_unitario IS NULL
+        BEGIN
+            SET @monto_unitario = @rubro_tarifa_base;
+            
+            IF @rubro_tarifa_base > 0
+            BEGIN
+                PRINT '  ℹ️  Monto unitario no especificado, usando tarifa base del rubro: ₡' + 
+                      CAST(@rubro_tarifa_base AS VARCHAR(20));
+            END
+            ELSE
+            BEGIN
+                PRINT '  ⚠️  El rubro no tiene tarifa base definida, usando ₡0.00';
+                PRINT '     Debe especificar @monto_unitario manualmente.';
+            END
+        END
+        
+        -- =============================================
+        -- VALIDACIONES DE MONTOS
+        -- =============================================
+        
+        -- 5. Validar cantidad > 0
         IF @cantidad <= 0
         BEGIN
             THROW 50155, 'La cantidad debe ser mayor a cero', 1;
         END
         
-        -- 7. Validar monto_unitario >= 0
+        -- 6. Validar monto_unitario >= 0
         IF @monto_unitario < 0
         BEGIN
             THROW 50156, 'El monto unitario no puede ser negativo', 1;
         END
         
-        -- 8. Validar descuento_linea >= 0
+        -- 7. Si monto_unitario = 0 y no hay tarifa_base, advertir
+        IF @monto_unitario = 0 AND @rubro_tarifa_base = 0
+        BEGIN
+            PRINT '  ⚠️  ADVERTENCIA: Insertando detalle con monto ₡0.00';
+            PRINT '     Asegúrese de que esto sea correcto.';
+        END
+        
+        -- 8. Validar descuento >= 0
         IF @descuento_linea < 0
         BEGIN
             THROW 50157, 'El descuento no puede ser negativo', 1;
         END
         
-        -- 9. Validar que descuento_linea no supere el subtotal de la línea
+        -- 9. Validar que descuento no supere subtotal
         DECLARE @subtotal_linea DECIMAL(12,2);
         SET @subtotal_linea = @cantidad * @monto_unitario;
         
@@ -1488,7 +1627,7 @@ BEGIN
         END
         
         -- =============================================
-        -- INSERCIÓN DEL DETALLE
+        -- ✅ INSERCIÓN DEL DETALLE (FALTABA ESTA PARTE)
         -- =============================================
         
         INSERT INTO dbo.Detalle_factura (
@@ -1512,13 +1651,11 @@ BEGIN
             @rubro_id
         );
         
-        -- Obtener el ID del detalle insertado
         SET @detalle_factura_id = SCOPE_IDENTITY();
         
         -- =============================================
         -- NOTA: El trigger trg_actualizar_monto_factura
-        -- se encargará de recalcular automáticamente
-        -- el monto_base de la factura
+        -- recalculará automáticamente el monto_base
         -- =============================================
         
         COMMIT TRANSACTION;
@@ -1538,6 +1675,12 @@ BEGIN
         FROM dbo.Detalle_factura
         WHERE detalle_factura_id = @detalle_factura_id;
         
+        PRINT '✅ Detalle de factura agregado exitosamente';
+        PRINT '   Nombre: ' + @nombre;
+        PRINT '   Monto unitario: ₡' + CAST(@monto_unitario AS VARCHAR(20));
+        PRINT '   Cantidad: ' + CAST(@cantidad AS VARCHAR(10));
+        PRINT '   Subtotal: ₡' + CAST((@cantidad * @monto_unitario - @descuento_linea) AS VARCHAR(20));
+        
     END TRY
     BEGIN CATCH
         IF @@TRANCOUNT > 0
@@ -1548,7 +1691,16 @@ BEGIN
 END
 GO
 
-PRINT '✓ SP sp_insertar_detalle_factura creado exitosamente';
+PRINT '';
+PRINT '========================================';
+PRINT '✅ sp_insertar_detalle_factura MEJORADO';
+PRINT '   Cambios realizados:';
+PRINT '   + @monto_unitario ahora es OPCIONAL';
+PRINT '   + Si NULL, usa tarifa_base del rubro';
+PRINT '   + Autocompletado inteligente de nombre';
+PRINT '   + Validación si tarifa_base = 0';
+PRINT '   + Mensajes informativos mejorados';
+PRINT '========================================';
 GO
 
 
@@ -1930,19 +2082,7 @@ GO
 
 
 
-
-
--- =============================================
--- SP: sp_registrar_pago
--- Descripción: Registra un pago total para una factura
--- Nota: Solo permite pagos totales (monto_pagado = monto_total)
--- =============================================
-
-USE MunicipalidadNicoya;
-GO
-
-IF OBJECT_ID('dbo.sp_registrar_pago', 'P') IS NOT NULL
-    DROP PROCEDURE dbo.sp_registrar_pago;
+DROP PROCEDURE IF EXISTS dbo.sp_registrar_pago;
 GO
 
 CREATE PROCEDURE dbo.sp_registrar_pago
@@ -1961,7 +2101,7 @@ BEGIN
         BEGIN TRANSACTION;
         
         -- =============================================
-        -- VALIDACIONES
+        -- VALIDACIONES BÁSICAS
         -- =============================================
         
         -- 1. Validar que la factura existe
@@ -1980,13 +2120,13 @@ BEGIN
         FROM dbo.Factura
         WHERE factura_id = @factura_id;
         
-        -- 3. Validar que la factura esté en estado que permite pago (Pendiente o Vencida)
+        -- 3. Validar que la factura esté en estado que permite pago
         IF @estado_factura NOT IN ('Pendiente', 'Vencida')
         BEGIN
             THROW 50202, 'Solo se pueden registrar pagos para facturas en estado Pendiente o Vencida', 1;
         END
         
-        -- 4. Validar que la factura NO tenga pagos previos (solo 1 pago por factura)
+        -- 4. Validar que la factura NO tenga pagos previos
         IF EXISTS (SELECT 1 FROM dbo.Pago WHERE factura_id = @factura_id)
         BEGIN
             THROW 50203, 'La factura ya tiene un pago registrado', 1;
@@ -2004,20 +2144,22 @@ BEGIN
             THROW 50205, 'El monto pagado debe ser mayor a cero', 1;
         END
         
-        -- 7. Validar que monto_pagado = monto_total (IGUALDAD EXACTA, solo pagos totales)
+        -- 7. Validar que monto_pagado = monto_total (EXACTO)
         IF @monto_pagado <> @monto_total_factura
         BEGIN
-            DECLARE @mensaje_monto VARCHAR(300);
-            SET @mensaje_monto = 'El monto pagado (' + CAST(@monto_pagado AS VARCHAR) + 
-                               ') debe ser igual al monto total de la factura (' + 
-                               CAST(@monto_total_factura AS VARCHAR) + '). Solo se permiten pagos totales';
-            THROW 50206, @mensaje_monto, 1;
+            DECLARE @mensaje_monto NVARCHAR(500);
+            SET @mensaje_monto = N'El monto pagado (₡' + CAST(@monto_pagado AS VARCHAR(20)) + 
+                               N') debe ser igual al monto total de la factura (₡' + 
+                               CAST(@monto_total_factura AS VARCHAR(20)) + N')';
+            
+            RAISERROR(@mensaje_monto, 16, 1);
+            RETURN;
         END
         
-        -- 8. Validar medio de pago (por ahora solo Efectivo)
-        IF @medio_pago <> 'Efectivo'
+        -- 8. Validar medio de pago
+        IF @medio_pago NOT IN ('Efectivo', 'Tarjeta', 'Transferencia', 'Cheque')
         BEGIN
-            THROW 50207, 'Actualmente solo se permiten pagos en efectivo', 1;
+            THROW 50207, 'Medio de pago inválido. Opciones: Efectivo, Tarjeta, Transferencia, Cheque', 1;
         END
         
         -- 9. Validar y configurar fecha de pago
@@ -2032,23 +2174,18 @@ BEGIN
             THROW 50208, 'No se pueden registrar pagos con fecha futura', 1;
         END
         
-        -- Nota: Fechas pasadas SÍ están permitidas (para registros retroactivos)
-        
         -- =============================================
         -- AUTOGENERAR NÚMERO DE RECIBO
-        -- Formato: REC-YYYYMMDD-####
         -- =============================================
         
-        DECLARE @fecha_actual DATE = CAST(GETDATE() AS DATE);
-        DECLARE @prefijo VARCHAR(20) = 'REC-' + FORMAT(@fecha_actual, 'yyyyMMdd') + '-';
+        DECLARE @fecha_recibo DATE = CAST(GETDATE() AS DATE);
+        DECLARE @prefijo VARCHAR(20) = 'REC-' + FORMAT(@fecha_recibo, 'yyyyMMdd') + '-';
         DECLARE @ultimo_secuencial INT;
         
-        -- Buscar el último número secuencial del día actual
         SELECT @ultimo_secuencial = ISNULL(MAX(CAST(RIGHT(numero_recibo, 4) AS INT)), 0)
         FROM dbo.Pago
         WHERE numero_recibo LIKE @prefijo + '%';
         
-        -- Generar nuevo número de recibo
         SET @numero_recibo = @prefijo + RIGHT('0000' + CAST(@ultimo_secuencial + 1 AS VARCHAR), 4);
         
         -- =============================================
@@ -2072,18 +2209,26 @@ BEGIN
             @factura_id
         );
         
-        -- Obtener el ID del pago insertado
         SET @pago_id = SCOPE_IDENTITY();
         
         -- =============================================
         -- NOTA: El trigger trg_actualizar_estado_factura
-        -- cambiará automáticamente el estado de la factura
-        -- a 'Pagada' (AFTER INSERT en Pago)
+        -- cambiará automáticamente el estado a 'Pagada'
         -- =============================================
         
         COMMIT TRANSACTION;
         
-        -- Retornar información del pago registrado con datos de la factura
+        -- Retornar información del pago registrado
+        PRINT '';
+        PRINT '========================================';
+        PRINT '✅ PAGO REGISTRADO EXITOSAMENTE';
+        PRINT '========================================';
+        PRINT 'Recibo: ' + @numero_recibo;
+        PRINT 'Monto pagado: ₡' + CAST(@monto_pagado AS VARCHAR(20));
+        PRINT '========================================';
+        PRINT '';
+        
+        -- Retornar datos del pago
         SELECT 
             p.pago_id,
             p.numero_recibo,
@@ -2091,11 +2236,14 @@ BEGIN
             p.fecha_pago,
             p.medio_pago,
             p.usuario_id,
-            u.nombre AS usuario_nombre,
+            u.nombre + ' ' + u.apellido1 AS usuario_nombre,
             p.factura_id,
             f.numero_factura,
-            f.estado_factura, -- Ya debe estar en 'Pagada' por el trigger
-            f.monto_total AS factura_monto_total
+            f.estado_factura,
+            f.monto_base,
+            f.recargo,
+            f.intereses,
+            f.monto_total
         FROM dbo.Pago p
         INNER JOIN dbo.Usuario u ON p.usuario_id = u.usuario_id
         INNER JOIN dbo.Factura f ON p.factura_id = f.factura_id
@@ -2106,18 +2254,24 @@ BEGIN
         IF @@TRANCOUNT > 0
             ROLLBACK TRANSACTION;
             
-        THROW;
+        DECLARE @ErrorMessage NVARCHAR(4000) = ERROR_MESSAGE();
+        DECLARE @ErrorSeverity INT = ERROR_SEVERITY();
+        DECLARE @ErrorState INT = ERROR_STATE();
+        
+        RAISERROR(@ErrorMessage, @ErrorSeverity, @ErrorState);
     END CATCH
 END
 GO
 
-PRINT '✓ SP sp_registrar_pago creado exitosamente';
+PRINT '';
+PRINT '========================================';
+PRINT '✅ sp_registrar_pago RESTAURADO';
+PRINT '   Versión: ORIGINAL (sin cálculo automático)';
+PRINT '   Función: Solo registra pagos';
+PRINT '   Validación: monto_pagado = monto_total';
+PRINT '   Recargos/Intereses: Calculados por Job o manualmente';
+PRINT '========================================';
 GO
-
-
-
-
-
 
 
 
@@ -2519,6 +2673,282 @@ GO
 
 PRINT '✓ SP sp_visualizar_historial_pagos creado exitosamente';
 GO
+
+
+
+
+
+
+
+
+
+
+-- =============================================
+-- SP NUEVO: sp_generar_facturas_recurrentes
+-- Descripción: Genera facturas masivas para todos los inmuebles
+--              con servicios activos según periodicidad
+-- Ejecutar: El día 1 de cada mes/trimestre/año
+-- =============================================
+
+USE MunicipalidadNicoya;
+GO
+
+DROP PROCEDURE IF EXISTS dbo.sp_generar_facturas_recurrentes;
+GO
+
+CREATE PROCEDURE dbo.sp_generar_facturas_recurrentes
+    @periodo DATE,
+    @usuario_id INT = 1 -- Usuario por defecto (sistema)
+AS
+BEGIN
+    SET NOCOUNT ON;
+    
+    BEGIN TRY
+        -- =============================================
+        -- VALIDACIONES INICIALES
+        -- =============================================
+        
+        -- Validar que el periodo sea día 1 del mes
+        IF DAY(@periodo) <> 1
+        BEGIN
+            THROW 50301, 'El periodo debe ser el primer día del mes (ejemplo: 2025-02-01)', 1;
+        END
+        
+        -- Validar que el usuario existe
+        IF NOT EXISTS (SELECT 1 FROM dbo.Usuario WHERE usuario_id = @usuario_id)
+        BEGIN
+            THROW 50302, 'El usuario especificado no existe', 1;
+        END
+        
+        -- Variables de control
+        DECLARE @fecha_emision DATETIME = @periodo;
+        DECLARE @mes_periodo INT = MONTH(@periodo);
+        DECLARE @anio_periodo INT = YEAR(@periodo);
+        DECLARE @facturas_generadas INT = 0;
+        DECLARE @servicios_facturados INT = 0;
+        
+        PRINT '';
+        PRINT '========================================';
+        PRINT '🔄 GENERACIÓN DE FACTURAS RECURRENTES';
+        PRINT '   Periodo: ' + CONVERT(VARCHAR(10), @periodo, 120);
+        PRINT '   Mes: ' + CAST(@mes_periodo AS VARCHAR(2));
+        PRINT '   Año: ' + CAST(@anio_periodo AS VARCHAR(4));
+        PRINT '========================================';
+        PRINT '';
+        
+        -- =============================================
+        -- TABLA TEMPORAL: Inmuebles con servicios activos
+        -- =============================================
+        
+        CREATE TABLE #InmueblesConServicios (
+            inmueble_id INT,
+            cantidad_servicios INT
+        );
+        
+        -- Identificar inmuebles que tienen al menos 1 servicio activo aplicable este periodo
+        INSERT INTO #InmueblesConServicios
+        SELECT 
+            si.inmueble_id,
+            COUNT(*) AS cantidad_servicios
+        FROM dbo.Servicio_Inmueble si
+        INNER JOIN dbo.Rubro r ON si.rubro_id = r.rubro_id
+        WHERE si.activo = 1
+          AND r.vigencia = 1
+          AND (
+              -- Servicios mensuales: todos los meses
+              r.periodicidad = 'Mensual'
+              -- Servicios trimestrales: meses 3, 6, 9, 12
+              OR (r.periodicidad = 'Trimestral' AND @mes_periodo IN (3, 6, 9, 12))
+              -- Servicios anuales: solo mes 1 (enero)
+              OR (r.periodicidad = 'Anual' AND @mes_periodo = 1)
+              -- Servicios únicos: solo si NO se ha facturado antes
+              OR (r.periodicidad = 'Único' AND NOT EXISTS (
+                  SELECT 1 FROM dbo.Factura f
+                  INNER JOIN dbo.Detalle_factura df ON f.factura_id = df.factura_id
+                  WHERE f.inmueble_id = si.inmueble_id
+                    AND df.rubro_id = si.rubro_id
+              ))
+          )
+        GROUP BY si.inmueble_id
+        HAVING COUNT(*) > 0;
+        
+        DECLARE @total_inmuebles INT = (SELECT COUNT(*) FROM #InmueblesConServicios);
+        
+        PRINT '📋 Inmuebles a procesar: ' + CAST(@total_inmuebles AS VARCHAR(10));
+        PRINT '';
+        
+        IF @total_inmuebles = 0
+        BEGIN
+            PRINT '⚠️  No hay inmuebles con servicios activos para este periodo';
+            PRINT '';
+            DROP TABLE #InmueblesConServicios;
+            RETURN;
+        END
+        
+        -- =============================================
+        -- CURSOR: Procesar cada inmueble
+        -- =============================================
+        
+        DECLARE @inmueble_id INT;
+        DECLARE @factura_id INT;
+        DECLARE @numero_factura VARCHAR(50);
+        
+        DECLARE cursor_inmuebles CURSOR FOR
+        SELECT inmueble_id FROM #InmueblesConServicios;
+        
+        OPEN cursor_inmuebles;
+        FETCH NEXT FROM cursor_inmuebles INTO @inmueble_id;
+        
+        WHILE @@FETCH_STATUS = 0
+        BEGIN
+            BEGIN TRY
+                BEGIN TRANSACTION;
+                
+                -- 1. Crear la factura para este inmueble
+                EXEC dbo.sp_emitir_factura
+                    @fecha_emision = @fecha_emision,
+                    @periodo = @periodo,
+                    @tramite_id = NULL,
+                    @inmueble_id = @inmueble_id,
+                    @usuario_id = @usuario_id,
+                    @factura_id = @factura_id OUTPUT,
+                    @numero_factura = @numero_factura OUTPUT;
+                
+                -- 2. Agregar detalles: servicios activos aplicables
+                DECLARE @servicio_inmueble_id INT;
+                DECLARE @rubro_id INT;
+                DECLARE @tarifa_personalizada DECIMAL(12,2);
+                DECLARE @monto_unitario DECIMAL(12,2);
+                DECLARE @nombre_servicio VARCHAR(100);
+                DECLARE @detalle_factura_id INT;
+                
+                DECLARE cursor_servicios CURSOR FOR
+                SELECT 
+                    si.servicio_inmueble_id,
+                    si.rubro_id,
+                    r.nombre AS nombre_servicio,
+                    ISNULL(si.tarifa_personalizada, r.tarifa_base) AS monto_unitario
+                FROM dbo.Servicio_Inmueble si
+                INNER JOIN dbo.Rubro r ON si.rubro_id = r.rubro_id
+                WHERE si.inmueble_id = @inmueble_id
+                  AND si.activo = 1
+                  AND r.vigencia = 1
+                  AND (
+                      r.periodicidad = 'Mensual'
+                      OR (r.periodicidad = 'Trimestral' AND @mes_periodo IN (3, 6, 9, 12))
+                      OR (r.periodicidad = 'Anual' AND @mes_periodo = 1)
+                      OR (r.periodicidad = 'Único' AND NOT EXISTS (
+                          SELECT 1 FROM dbo.Factura f
+                          INNER JOIN dbo.Detalle_factura df ON f.factura_id = df.factura_id
+                          WHERE f.inmueble_id = si.inmueble_id
+                            AND df.rubro_id = si.rubro_id
+                      ))
+                  );
+                
+                OPEN cursor_servicios;
+                FETCH NEXT FROM cursor_servicios INTO 
+                    @servicio_inmueble_id, @rubro_id, @nombre_servicio, @monto_unitario;
+                
+                WHILE @@FETCH_STATUS = 0
+                BEGIN
+                    -- Insertar detalle de factura
+                    EXEC dbo.sp_insertar_detalle_factura
+                        @factura_id = @factura_id,
+                        @rubro_id = @rubro_id,
+                        @nombre = @nombre_servicio,
+                        @referencia_servicio = NULL,
+                        @cantidad = 1,
+                        @monto_unitario = @monto_unitario,
+                        @descuento_linea = 0,
+                        @fecha_servicio = @periodo,
+                        @detalle_factura_id = @detalle_factura_id OUTPUT;
+                    
+                    SET @servicios_facturados = @servicios_facturados + 1;
+                    
+                    FETCH NEXT FROM cursor_servicios INTO 
+                        @servicio_inmueble_id, @rubro_id, @nombre_servicio, @monto_unitario;
+                END
+                
+                CLOSE cursor_servicios;
+                DEALLOCATE cursor_servicios;
+                
+                SET @facturas_generadas = @facturas_generadas + 1;
+                
+                COMMIT TRANSACTION;
+                
+                -- Log de progreso cada 50 facturas
+                IF @facturas_generadas % 50 = 0
+                BEGIN
+                    PRINT '  ✓ Procesadas: ' + CAST(@facturas_generadas AS VARCHAR(10)) + ' facturas';
+                END
+                
+            END TRY
+            BEGIN CATCH
+                IF @@TRANCOUNT > 0
+                    ROLLBACK TRANSACTION;
+                
+                -- Log del error pero continuar con el siguiente inmueble
+                PRINT '  ❌ Error en inmueble ' + CAST(@inmueble_id AS VARCHAR(10)) + ': ' + ERROR_MESSAGE();
+            END CATCH
+            
+            FETCH NEXT FROM cursor_inmuebles INTO @inmueble_id;
+        END
+        
+        CLOSE cursor_inmuebles;
+        DEALLOCATE cursor_inmuebles;
+        
+        -- Limpiar tabla temporal
+        DROP TABLE #InmueblesConServicios;
+        
+        -- =============================================
+        -- RESUMEN DE EJECUCIÓN
+        -- =============================================
+        
+        PRINT '';
+        PRINT '========================================';
+        PRINT '✅ GENERACIÓN COMPLETADA';
+        PRINT '   Facturas generadas: ' + CAST(@facturas_generadas AS VARCHAR(10));
+        PRINT '   Servicios facturados: ' + CAST(@servicios_facturados AS VARCHAR(10));
+        PRINT '   Promedio servicios/factura: ' + CAST(CAST(@servicios_facturados AS FLOAT) / NULLIF(@facturas_generadas, 0) AS VARCHAR(10));
+        PRINT '========================================';
+        PRINT '';
+        
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+        
+        -- Limpiar recursos
+        IF CURSOR_STATUS('global', 'cursor_servicios') >= 0
+            DEALLOCATE cursor_servicios;
+            
+        IF CURSOR_STATUS('global', 'cursor_inmuebles') >= 0
+            DEALLOCATE cursor_inmuebles;
+            
+        IF OBJECT_ID('tempdb..#InmueblesConServicios') IS NOT NULL
+            DROP TABLE #InmueblesConServicios;
+        
+        THROW;
+    END CATCH
+END
+GO
+
+PRINT '';
+PRINT '========================================';
+PRINT '✅ sp_generar_facturas_recurrentes CREADO';
+PRINT '   FUNCIONALIDADES:';
+PRINT '   ✓ Genera facturas masivas para servicios activos';
+PRINT '   ✓ Respeta periodicidad (Mensual/Trimestral/Anual/Único)';
+PRINT '   ✓ Usa tarifa_personalizada o tarifa_base';
+PRINT '   ✓ Maneja errores individualmente (continúa con siguiente)';
+PRINT '   ✓ Log de progreso cada 50 facturas';
+PRINT '';
+PRINT '   EJEMPLO DE USO:';
+PRINT '   EXEC sp_generar_facturas_recurrentes @periodo = ''2025-02-01'';';
+PRINT '========================================';
+GO
+
+
 
 
 
