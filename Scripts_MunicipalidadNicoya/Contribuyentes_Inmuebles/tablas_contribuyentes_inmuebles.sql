@@ -7,39 +7,28 @@
 USE MunicipalidadNicoya;
 GO
 
-
--- Eliminar en orden: de tablas dependientes a independientes
-DELETE FROM dbo.Tramite;
-DELETE FROM dbo.ObservacionInmueble;
-DELETE FROM dbo.Colindancias;
-DELETE FROM dbo.Catastro;
-DELETE FROM dbo.Contribuyente_Inmueble;
-DELETE FROM dbo.Contribuyente_juridico;
-DELETE FROM dbo.Contribuyente_fisico;
-DELETE FROM dbo.Inmueble;
-DELETE FROM dbo.TipoUsoInmueble;
-DELETE FROM dbo.Contribuyente;
+PRINT '';
+PRINT '========================================';
+PRINT 'MÓDULO: CONTRIBUYENTES E INMUEBLES';
+PRINT '========================================';
 GO
 
-PRINT '✓ Todos los registros eliminados';
-GO
-
-
-
-
-
 -- =============================================
--- ELIMINAR RESTRICCIONES FK ANTES DE DROP
+-- PASO 1: ELIMINAR TODAS LAS FK QUE REFERENCIAN ESTAS TABLAS
 -- =============================================
 
--- FK externas (desde Tramite)
+-- FK desde módulo Trámites
 IF EXISTS (SELECT * FROM sys.foreign_keys WHERE name = 'FK_Tramite_Inmueble')
     ALTER TABLE dbo.Tramite DROP CONSTRAINT FK_Tramite_Inmueble;
 
 IF EXISTS (SELECT * FROM sys.foreign_keys WHERE name = 'FK_Tramite_Contribuyente')
     ALTER TABLE dbo.Tramite DROP CONSTRAINT FK_Tramite_Contribuyente;
 
--- FK internas
+-- FK desde módulo Pagos (CRÍTICO)
+IF EXISTS (SELECT * FROM sys.foreign_keys WHERE name = 'FK_Factura_Inmueble')
+    ALTER TABLE dbo.Factura DROP CONSTRAINT FK_Factura_Inmueble;
+
+-- FK internas del módulo
 IF EXISTS (SELECT * FROM sys.foreign_keys WHERE name = 'FK_ObservacionInmueble_Inmueble')
     ALTER TABLE dbo.ObservacionInmueble DROP CONSTRAINT FK_ObservacionInmueble_Inmueble;
 
@@ -78,9 +67,26 @@ IF EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_Catastro_Inmueble')
     DROP INDEX IX_Catastro_Inmueble ON dbo.Catastro;
 GO
 
-PRINT '✓ Restricciones e índices eliminados';
+PRINT '✓ Restricciones FK e índices eliminados';
 GO
 
+-- =============================================
+-- PASO 2: ELIMINAR TABLAS EN ORDEN CORRECTO
+-- =============================================
+
+DROP TABLE IF EXISTS dbo.ObservacionInmueble;
+DROP TABLE IF EXISTS dbo.Colindancias;
+DROP TABLE IF EXISTS dbo.Catastro;
+DROP TABLE IF EXISTS dbo.Contribuyente_Inmueble;
+DROP TABLE IF EXISTS dbo.Contribuyente_juridico;
+DROP TABLE IF EXISTS dbo.Contribuyente_fisico;
+DROP TABLE IF EXISTS dbo.Inmueble;
+DROP TABLE IF EXISTS dbo.TipoUsoInmueble;
+DROP TABLE IF EXISTS dbo.Contribuyente;
+GO
+
+PRINT '✓ Tablas eliminadas';
+GO
 
 
 

@@ -804,3 +804,309 @@ PRINT '';
 
 PRINT '========================================';
 GO
+
+
+
+
+
+-- =============================================
+-- MÓDULO: TRÁMITES Y PERMISOS
+-- Script: Datos de Prueba y Tests (CORREGIDO)
+-- Descripción: Inserción de datos de prueba con validación robusta
+-- =============================================
+
+USE MunicipalidadNicoya;
+GO
+
+PRINT '';
+PRINT '========================================';
+PRINT 'PREPARANDO DATOS DE PRUEBA - TRÁMITES';
+PRINT '========================================';
+GO
+
+-- =============================================
+-- LIMPIAR DATOS PREVIOS
+-- =============================================
+PRINT '1. Limpiando datos previos de trámites...';
+GO
+
+DELETE FROM Tipo_Tramite_Requisito;
+DELETE FROM Tramite;
+DELETE FROM Requisito;
+DELETE FROM Tipo_Tramite;
+GO
+
+PRINT '✓ Datos previos de trámites eliminados';
+GO
+
+-- =============================================
+-- VERIFICAR DATOS BASE
+-- =============================================
+PRINT '';
+PRINT '2. Verificando datos base (Contribuyentes e Inmuebles)...';
+GO
+
+DECLARE @total_contribuyentes INT;
+DECLARE @total_inmuebles INT;
+
+SELECT @total_contribuyentes = COUNT(*) FROM Contribuyente;
+SELECT @total_inmuebles = COUNT(*) FROM Inmueble;
+
+IF @total_contribuyentes = 0
+BEGIN
+    PRINT '⚠ ADVERTENCIA: No hay contribuyentes registrados.';
+    PRINT '  Ejecute primero el script de prueba de Contribuyentes e Inmuebles.';
+    RETURN;
+END
+
+IF @total_inmuebles = 0
+BEGIN
+    PRINT '⚠ ADVERTENCIA: No hay inmuebles registrados.';
+    PRINT '  Ejecute primero el script de prueba de Contribuyentes e Inmuebles.';
+    RETURN;
+END
+
+PRINT '✓ Datos base verificados:';
+PRINT '  - Contribuyentes: ' + CAST(@total_contribuyentes AS VARCHAR(10));
+PRINT '  - Inmuebles: ' + CAST(@total_inmuebles AS VARCHAR(10));
+GO
+
+-- =============================================
+-- RE-INSERTAR TIPOS DE TRÁMITE Y REQUISITOS
+-- =============================================
+PRINT '';
+PRINT '3. Re-insertando tipos de trámite...';
+GO
+
+-- Limpiar y reinsertar para asegurar consistencia
+DELETE FROM Tipo_Tramite;
+
+-- Crear índice único si no existe
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name='UQ_Tipo_Tramite_nombre_tipo' AND object_id=OBJECT_ID('dbo.Tipo_Tramite'))
+    CREATE UNIQUE INDEX UQ_Tipo_Tramite_nombre_tipo ON dbo.Tipo_Tramite(nombre_tipo);
+
+-- Insertar tipos de trámite
+INSERT INTO dbo.Tipo_Tramite (nombre_tipo) VALUES
+('Permiso de Construcción'),
+('Uso de Suelo'),
+('Patente Comercial'),
+('Cambio de Uso de Propiedad'),
+('Movimiento de Tierras');
+
+PRINT '✓ Tipos de trámite insertados: ' + CAST(@@ROWCOUNT AS VARCHAR(10));
+GO
+
+PRINT '';
+PRINT '4. Re-insertando requisitos...';
+GO
+
+-- Limpiar y reinsertar requisitos
+DELETE FROM Requisito;
+
+-- Crear índice único si no existe
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'UQ_Requisito_nombre' AND object_id = OBJECT_ID('dbo.Requisito'))
+    CREATE UNIQUE INDEX UQ_Requisito_nombre ON dbo.Requisito(nombre);
+
+-- Insertar requisitos
+INSERT INTO dbo.Requisito (nombre, descripcion) VALUES
+('Formulario de solicitud', 'Formulario oficial de solicitud debidamente completado y firmado.'),
+('Copia de cédula', 'Copia legible de la cédula de identidad del solicitante o representante.'),
+('Plano catastrado', 'Copia del plano catastrado vigente.'),
+('Certificación de uso de suelo', 'Certificación municipal del uso de suelo.'),
+('Comprobante de pago', 'Comprobante de cancelación de derechos municipales.'),
+('Permiso sanitario', 'Permiso de funcionamiento sanitario vigente.'),
+('Declaración jurada', 'Declaración jurada de veracidad de la información aportada.'),
+('Carta de autorización', 'Carta de autorización del propietario (si aplica).');
+
+PRINT '✓ Requisitos insertados: ' + CAST(@@ROWCOUNT AS VARCHAR(10));
+GO
+
+PRINT '';
+PRINT '5. Insertando relaciones Tipo Trámite - Requisito...';
+GO
+
+-- Insertar relaciones
+INSERT INTO dbo.Tipo_Tramite_Requisito (tipo_tramite_id, requisito_id)
+SELECT tt.tipo_tramite_id, r.requisito_id
+FROM (VALUES
+    ('Permiso de Construcción', 'Formulario de solicitud'),
+    ('Permiso de Construcción', 'Copia de cédula'),
+    ('Permiso de Construcción', 'Plano catastrado'),
+    ('Permiso de Construcción', 'Certificación de uso de suelo'),
+    ('Permiso de Construcción', 'Comprobante de pago'),
+    ('Uso de Suelo', 'Formulario de solicitud'),
+    ('Uso de Suelo', 'Copia de cédula'),
+    ('Uso de Suelo', 'Declaración jurada'),
+    ('Patente Comercial', 'Formulario de solicitud'),
+    ('Patente Comercial', 'Copia de cédula'),
+    ('Patente Comercial', 'Permiso sanitario'),
+    ('Patente Comercial', 'Comprobante de pago')
+) AS V(tipo_nombre, req_nombre)
+JOIN Tipo_Tramite tt ON tt.nombre_tipo = V.tipo_nombre
+JOIN Requisito r ON r.nombre = V.req_nombre;
+
+PRINT '✓ Relaciones insertadas: ' + CAST(@@ROWCOUNT AS VARCHAR(10));
+GO
+
+-- =============================================
+-- MOSTRAR TIPOS DISPONIBLES PARA DEBUG
+-- =============================================
+PRINT '';
+PRINT 'DEBUG: Tipos de trámite disponibles:';
+SELECT tipo_tramite_id, nombre_tipo FROM Tipo_Tramite;
+GO
+
+-- =============================================
+-- INSERTAR TRÁMITES DE PRUEBA
+-- =============================================
+PRINT '';
+PRINT '6. Insertando trámites de prueba...';
+GO
+
+DECLARE @contrib1_id INT;
+DECLARE @contrib2_id INT;
+DECLARE @inmueble1_id INT;
+DECLARE @inmueble2_id INT;
+DECLARE @tipo_permiso_construccion INT;
+DECLARE @tipo_uso_suelo INT;
+DECLARE @tipo_patente INT;
+DECLARE @tipo_cambio_uso INT;
+
+-- Obtener IDs
+SELECT TOP 1 @contrib1_id = contribuyente_id FROM Contribuyente ORDER BY contribuyente_id;
+SELECT TOP 1 @contrib2_id = contribuyente_id FROM Contribuyente WHERE contribuyente_id > @contrib1_id ORDER BY contribuyente_id;
+SELECT TOP 1 @inmueble1_id = inmueble_id FROM Inmueble ORDER BY inmueble_id;
+SELECT TOP 1 @inmueble2_id = inmueble_id FROM Inmueble WHERE inmueble_id > @inmueble1_id ORDER BY inmueble_id;
+
+-- Obtener tipos de trámite (ahora con certeza de que existen)
+SELECT @tipo_permiso_construccion = tipo_tramite_id FROM Tipo_Tramite WHERE nombre_tipo = 'Permiso de Construcción';
+SELECT @tipo_uso_suelo = tipo_tramite_id FROM Tipo_Tramite WHERE nombre_tipo = 'Uso de Suelo';
+SELECT @tipo_patente = tipo_tramite_id FROM Tipo_Tramite WHERE nombre_tipo = 'Patente Comercial';
+SELECT @tipo_cambio_uso = tipo_tramite_id FROM Tipo_Tramite WHERE nombre_tipo = 'Cambio de Uso de Propiedad';
+
+-- Validar que se obtuvieron todos los IDs necesarios
+IF @tipo_permiso_construccion IS NULL OR @tipo_uso_suelo IS NULL OR @tipo_patente IS NULL OR @tipo_cambio_uso IS NULL
+BEGIN
+    PRINT '❌ ERROR: No se pudieron obtener los IDs de tipos de trámite';
+    PRINT 'Permiso Construcción: ' + ISNULL(CAST(@tipo_permiso_construccion AS VARCHAR), 'NULL');
+    PRINT 'Uso Suelo: ' + ISNULL(CAST(@tipo_uso_suelo AS VARCHAR), 'NULL');
+    PRINT 'Patente: ' + ISNULL(CAST(@tipo_patente AS VARCHAR), 'NULL');
+    PRINT 'Cambio Uso: ' + ISNULL(CAST(@tipo_cambio_uso AS VARCHAR), 'NULL');
+    RETURN;
+END
+
+PRINT 'IDs obtenidos correctamente:';
+PRINT '  Permiso Construcción: ' + CAST(@tipo_permiso_construccion AS VARCHAR(10));
+PRINT '  Uso Suelo: ' + CAST(@tipo_uso_suelo AS VARCHAR(10));
+PRINT '  Patente: ' + CAST(@tipo_patente AS VARCHAR(10));
+PRINT '  Cambio Uso: ' + CAST(@tipo_cambio_uso AS VARCHAR(10));
+
+-- Trámite 1: Permiso de Construcción (En Proceso)
+DECLARE @tramite1_id INT;
+EXEC sp_Tramite_Insertar
+    @fecha_ingreso = '2025-01-15',
+    @fecha_resolucion = NULL,
+    @observaciones = 'Construcción de casa de habitación de 2 plantas',
+    @tipo_tramite_id = @tipo_permiso_construccion,
+    @contribuyente_id = @contrib1_id,
+    @inmueble_id = @inmueble1_id,
+    @estado_actual = 'En Proceso';
+
+SELECT TOP 1 @tramite1_id = tramite_id FROM Tramite ORDER BY tramite_id DESC;
+
+-- Trámite 2: Uso de Suelo (Aprobado)
+DECLARE @tramite2_id INT;
+EXEC sp_Tramite_Insertar
+    @fecha_ingreso = '2024-12-10',
+    @fecha_resolucion = '2024-12-20',
+    @observaciones = 'Certificación de uso de suelo para comercio',
+    @tipo_tramite_id = @tipo_uso_suelo,
+    @contribuyente_id = @contrib2_id,
+    @inmueble_id = @inmueble2_id,
+    @estado_actual = 'Aprobado';
+
+SELECT TOP 1 @tramite2_id = tramite_id FROM Tramite ORDER BY tramite_id DESC;
+
+-- Trámite 3: Patente Comercial (En Proceso)
+DECLARE @tramite3_id INT;
+EXEC sp_Tramite_Insertar
+    @fecha_ingreso = '2025-02-01',
+    @fecha_resolucion = NULL,
+    @observaciones = 'Patente para restaurante familiar',
+    @tipo_tramite_id = @tipo_patente,
+    @contribuyente_id = @contrib1_id,
+    @inmueble_id = @inmueble1_id,
+    @estado_actual = 'En Proceso';
+
+SELECT TOP 1 @tramite3_id = tramite_id FROM Tramite ORDER BY tramite_id DESC;
+
+-- Trámite 4: Permiso de Construcción (Rechazado)
+DECLARE @tramite4_id INT;
+EXEC sp_Tramite_Insertar
+    @fecha_ingreso = '2024-11-05',
+    @fecha_resolucion = '2024-11-25',
+    @observaciones = 'No cumple con retiros mínimos establecidos',
+    @tipo_tramite_id = @tipo_permiso_construccion,
+    @contribuyente_id = @contrib2_id,
+    @inmueble_id = @inmueble2_id,
+    @estado_actual = 'Rechazado';
+
+SELECT TOP 1 @tramite4_id = tramite_id FROM Tramite ORDER BY tramite_id DESC;
+
+-- Trámite 5: Cambio de Uso (Finalizado)
+DECLARE @tramite5_id INT;
+EXEC sp_Tramite_Insertar
+    @fecha_ingreso = '2024-10-15',
+    @fecha_resolucion = '2024-11-10',
+    @observaciones = 'Cambio de uso de residencial a comercial - Aprobado con condiciones',
+    @tipo_tramite_id = @tipo_cambio_uso,
+    @contribuyente_id = @contrib1_id,
+    @inmueble_id = @inmueble1_id,
+    @estado_actual = 'Finalizado';
+
+SELECT TOP 1 @tramite5_id = tramite_id FROM Tramite ORDER BY tramite_id DESC;
+
+PRINT '✓ Trámites de prueba insertados';
+PRINT '  - Trámite 1 (En Proceso): ' + CAST(@tramite1_id AS VARCHAR(10));
+PRINT '  - Trámite 2 (Aprobado): ' + CAST(@tramite2_id AS VARCHAR(10));
+PRINT '  - Trámite 3 (En Proceso): ' + CAST(@tramite3_id AS VARCHAR(10));
+PRINT '  - Trámite 4 (Rechazado): ' + CAST(@tramite4_id AS VARCHAR(10));
+PRINT '  - Trámite 5 (Finalizado): ' + CAST(@tramite5_id AS VARCHAR(10));
+GO
+
+-- =============================================
+-- EL RESTO DE LOS TESTS SIGUEN IGUAL...
+-- =============================================
+
+PRINT '';
+PRINT '========================================';
+PRINT 'EJECUTANDO PRUEBAS - TIPO TRÁMITE';
+PRINT '========================================';
+GO
+
+PRINT '';
+PRINT 'Test 1: Listar todos los tipos de trámite';
+EXEC sp_TipoTramite_Listar;
+GO
+
+PRINT '';
+PRINT 'Test 2: Listar todos los trámites';
+EXEC sp_Tramite_Listar;
+GO
+
+PRINT '';
+PRINT 'Test 3: Listar requisitos';
+EXEC sp_Requisito_Listar;
+GO
+
+PRINT '';
+PRINT 'Test 4: Requisitos para Permiso de Construcción';
+DECLARE @tipo_id INT = (SELECT tipo_tramite_id FROM Tipo_Tramite WHERE nombre_tipo = 'Permiso de Construcción');
+EXEC sp_Requisitos_PorTipoTramite @tipo_tramite_id = @tipo_id;
+GO
+
+PRINT '';
+PRINT '========================================';
+PRINT '✓ PRUEBAS BÁSICAS COMPLETADAS';
+PRINT '========================================';
+GO

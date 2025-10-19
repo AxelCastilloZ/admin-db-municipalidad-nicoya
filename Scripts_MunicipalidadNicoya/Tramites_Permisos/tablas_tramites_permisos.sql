@@ -7,16 +7,53 @@
 USE MunicipalidadNicoya;
 GO
 
--- =============================================
--- ELIMINAR TABLAS SI EXISTEN
--- =============================================
-IF OBJECT_ID('dbo.Tramite', 'U') IS NOT NULL
-    DROP TABLE dbo.Tramite;
+PRINT '';
+PRINT '========================================';
+PRINT 'MÓDULO: TRÁMITES Y PERMISOS';
+PRINT '========================================';
 GO
 
-IF OBJECT_ID('dbo.Tipo_Tramite', 'U') IS NOT NULL
-    DROP TABLE dbo.Tipo_Tramite;
+-- =============================================
+-- PASO 1: ELIMINAR FK EXTERNAS QUE REFERENCIAN ESTAS TABLAS
+-- =============================================
+
+-- FK desde módulo Pagos
+IF EXISTS (SELECT * FROM sys.foreign_keys WHERE name = 'FK_Factura_Tramite')
+    ALTER TABLE dbo.Factura DROP CONSTRAINT FK_Factura_Tramite;
+
+-- FK internas del módulo
+IF EXISTS (SELECT * FROM sys.foreign_keys WHERE name = 'FK_Tramite_TipoTramite')
+    ALTER TABLE dbo.Tramite DROP CONSTRAINT FK_Tramite_TipoTramite;
+
+IF EXISTS (SELECT * FROM sys.foreign_keys WHERE name = 'FK_Tramite_Contribuyente')
+    ALTER TABLE dbo.Tramite DROP CONSTRAINT FK_Tramite_Contribuyente;
+
+IF EXISTS (SELECT * FROM sys.foreign_keys WHERE name = 'FK_Tramite_Inmueble')
+    ALTER TABLE dbo.Tramite DROP CONSTRAINT FK_Tramite_Inmueble;
+
+IF EXISTS (SELECT * FROM sys.foreign_keys WHERE name = 'FK_TipoTramiteRequisito_TipoTramite')
+    ALTER TABLE dbo.Tipo_Tramite_Requisito DROP CONSTRAINT FK_TipoTramiteRequisito_TipoTramite;
+
+IF EXISTS (SELECT * FROM sys.foreign_keys WHERE name = 'FK_TipoTramiteRequisito_Requisito')
+    ALTER TABLE dbo.Tipo_Tramite_Requisito DROP CONSTRAINT FK_TipoTramiteRequisito_Requisito;
 GO
+
+PRINT '✓ Foreign keys eliminadas';
+GO
+
+-- =============================================
+-- PASO 2: ELIMINAR TABLAS SI EXISTEN
+-- =============================================
+
+DROP TABLE IF EXISTS dbo.Tipo_Tramite_Requisito;
+DROP TABLE IF EXISTS dbo.Requisito;
+DROP TABLE IF EXISTS dbo.Tramite;
+DROP TABLE IF EXISTS dbo.Tipo_Tramite;
+GO
+
+PRINT '✓ Tablas eliminadas';
+GO
+-- 3. Ahora sí crear las tablas desde cero
 
 -- =============================================
 -- TABLA: Tipo_Tramite
