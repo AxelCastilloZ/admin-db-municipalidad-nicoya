@@ -800,9 +800,18 @@ GO
 
 
 
+USE MunicipalidadNicoya;
+GO
+
 -- =============================================
--- SP2: sp_consultar_factura_por_id
--- Descripción: Consulta completa de factura con contribuyentes y detalles
+-- SP: sp_consultar_factura_por_id (VERSIÓN CORREGIDA)
+-- =============================================
+USE MunicipalidadNicoya;
+GO
+
+-- =============================================
+-- SP CORREGIDO: sp_consultar_factura_por_id
+-- CAMBIO: RESULTSET 2 ahora es UN SOLO SELECT con UNION
 -- =============================================
 DROP PROCEDURE IF EXISTS dbo.sp_consultar_factura_por_id;
 GO
@@ -820,7 +829,9 @@ BEGIN
             THROW 50106, 'No existe una factura con el ID especificado.', 1;
         END
         
+        -- =============================================
         -- RESULTSET 1: Información completa de la factura
+        -- =============================================
         SELECT 
             f.factura_id,
             f.numero_factura,
@@ -859,74 +870,69 @@ BEGIN
         LEFT JOIN dbo.TipoUsoInmueble tui ON i.tipo_uso_inmueble_id = tui.tipo_uso_inmueble_id
         WHERE f.factura_id = @factura_id;
         
+        -- =============================================
         -- RESULTSET 2: Contribuyentes asociados
-        DECLARE @tramite_id_factura INT;
-        DECLARE @inmueble_id_factura INT;
+        -- ✅ CAMBIO CRÍTICO: UN SOLO SELECT con UNION
+        -- =============================================
+        SELECT 
+            c.contribuyente_id,
+            c.tipo_contribuyente,
+            c.telefono,
+            c.email,
+            c.direccion,
+            CASE 
+                WHEN c.tipo_contribuyente = 'Física' 
+                THEN CONCAT(cf.nombre, ' ', cf.apellido1, ' ', ISNULL(cf.apellido2, ''))
+                ELSE cj.nombre_empresa
+            END AS nombre_completo,
+            CASE 
+                WHEN c.tipo_contribuyente = 'Física' 
+                THEN cf.cedula
+                ELSE cj.cedula_juridica
+            END AS cedula,
+            CAST(NULL AS DECIMAL(5,2)) AS porcentaje_propiedad,
+            'Tramite' AS origen
+        FROM dbo.Factura f
+        INNER JOIN dbo.Tramite t ON f.tramite_id = t.tramite_id
+        INNER JOIN dbo.Contribuyente c ON t.contribuyente_id = c.contribuyente_id
+        LEFT JOIN dbo.Contribuyente_fisico cf ON c.contribuyente_id = cf.contribuyente_id
+        LEFT JOIN dbo.Contribuyente_juridico cj ON c.contribuyente_id = cj.contribuyente_id
+        WHERE f.factura_id = @factura_id
+          AND f.tramite_id IS NOT NULL
+        
+        UNION ALL
         
         SELECT 
-            @tramite_id_factura = tramite_id,
-            @inmueble_id_factura = inmueble_id
-        FROM dbo.Factura
-        WHERE factura_id = @factura_id;
+            c.contribuyente_id,
+            c.tipo_contribuyente,
+            c.telefono,
+            c.email,
+            c.direccion,
+            CASE 
+                WHEN c.tipo_contribuyente = 'Física' 
+                THEN CONCAT(cf.nombre, ' ', cf.apellido1, ' ', ISNULL(cf.apellido2, ''))
+                ELSE cj.nombre_empresa
+            END AS nombre_completo,
+            CASE 
+                WHEN c.tipo_contribuyente = 'Física' 
+                THEN cf.cedula
+                ELSE cj.cedula_juridica
+            END AS cedula,
+            ci.porcentaje_propiedad,
+            'Inmueble' AS origen
+        FROM dbo.Factura f
+        INNER JOIN dbo.Inmueble i ON f.inmueble_id = i.inmueble_id
+        INNER JOIN dbo.Contribuyente_Inmueble ci ON i.inmueble_id = ci.inmueble_id
+        INNER JOIN dbo.Contribuyente c ON ci.contribuyente_id = c.contribuyente_id
+        LEFT JOIN dbo.Contribuyente_fisico cf ON c.contribuyente_id = cf.contribuyente_id
+        LEFT JOIN dbo.Contribuyente_juridico cj ON c.contribuyente_id = cj.contribuyente_id
+        WHERE f.factura_id = @factura_id
+          AND f.inmueble_id IS NOT NULL
+        ORDER BY porcentaje_propiedad DESC;
         
-        -- ✅ CORREGIDO: Si es factura por trámite
-        IF @tramite_id_factura IS NOT NULL
-        BEGIN
-            SELECT 
-                c.contribuyente_id,
-                c.tipo_contribuyente,
-                c.telefono,
-                c.email,
-                c.direccion,
-                CASE 
-                    WHEN c.tipo_contribuyente = 'Física' 
-                    THEN CONCAT(cf.nombre, ' ', cf.apellido1, ' ', ISNULL(cf.apellido2, ''))
-                    ELSE cj.nombre_empresa
-                END AS nombre_completo,
-                CASE 
-                    WHEN c.tipo_contribuyente = 'Física' 
-                    THEN cf.cedula
-                    ELSE cj.cedula_juridica
-                END AS cedula,
-                CAST(NULL AS DECIMAL(5,2)) AS porcentaje_propiedad,
-                'Tramite' AS origen
-            FROM dbo.Tramite t
-            INNER JOIN dbo.Contribuyente c ON t.contribuyente_id = c.contribuyente_id
-            LEFT JOIN dbo.Contribuyente_fisico cf ON c.contribuyente_id = cf.contribuyente_id
-            LEFT JOIN dbo.Contribuyente_juridico cj ON c.contribuyente_id = cj.contribuyente_id
-            WHERE t.tramite_id = @tramite_id_factura;
-        END
-        
-        -- Si es factura por inmueble
-        IF @inmueble_id_factura IS NOT NULL
-        BEGIN
-            SELECT 
-                c.contribuyente_id,
-                c.tipo_contribuyente,
-                c.telefono,
-                c.email,
-                c.direccion,
-                CASE 
-                    WHEN c.tipo_contribuyente = 'Física' 
-                    THEN CONCAT(cf.nombre, ' ', cf.apellido1, ' ', ISNULL(cf.apellido2, ''))
-                    ELSE cj.nombre_empresa
-                END AS nombre_completo,
-                CASE 
-                    WHEN c.tipo_contribuyente = 'Física' 
-                    THEN cf.cedula
-                    ELSE cj.cedula_juridica
-                END AS cedula,
-                ci.porcentaje_propiedad,
-                'Inmueble' AS origen
-            FROM dbo.Contribuyente_Inmueble ci
-            INNER JOIN dbo.Contribuyente c ON ci.contribuyente_id = c.contribuyente_id
-            LEFT JOIN dbo.Contribuyente_fisico cf ON c.contribuyente_id = cf.contribuyente_id
-            LEFT JOIN dbo.Contribuyente_juridico cj ON c.contribuyente_id = cj.contribuyente_id
-            WHERE ci.inmueble_id = @inmueble_id_factura
-            ORDER BY ci.porcentaje_propiedad DESC;
-        END
-        
+        -- =============================================
         -- RESULTSET 3: Detalles/ítems de la factura
+        -- =============================================
         SELECT 
             df.detalle_factura_id,
             df.nombre AS descripcion,
@@ -951,17 +957,7 @@ BEGIN
 END
 GO
 
-PRINT '✅ sp_consultar_factura_por_id CORREGIDO - Uso de CONCAT para evitar NULL';
-GO
-
-PRINT '';
-PRINT '========================================';
-PRINT '✓ STORED PROCEDURE - sp_consultar_factura_por_id';
-PRINT '  Retorna 3 resultsets:';
-PRINT '  1. Factura completa con información relacionada';
-PRINT '  2. Contribuyentes asociados (trámite o inmueble)';
-PRINT '  3. Detalles/ítems de la factura';
-PRINT '========================================';
+PRINT '✅ sp_consultar_factura_por_id CORREGIDO - Ahora retorna EXACTAMENTE 3 RESULTSETS';
 GO
 
 
