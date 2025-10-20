@@ -664,8 +664,15 @@ GO
 -- Descripción: Emite una nueva factura con autogeneración de número
 -- =============================================
 
-IF OBJECT_ID('dbo.sp_emitir_factura', 'P') IS NOT NULL
-    DROP PROCEDURE dbo.sp_emitir_factura;
+USE MunicipalidadNicoya;
+GO
+
+-- =============================================
+-- SP CORREGIDO: sp_emitir_factura
+-- MEJORA: Validación flexible (tramite_id O inmueble_id O ambos)
+-- =============================================
+
+DROP PROCEDURE IF EXISTS dbo.sp_emitir_factura;
 GO
 
 CREATE PROCEDURE dbo.sp_emitir_factura
@@ -683,39 +690,69 @@ BEGIN
     BEGIN TRY
         BEGIN TRANSACTION;
         
-        -- Si fecha_emision es NULL, usar GETDATE()
-        IF @fecha_emision IS NULL
-            SET @fecha_emision = GETDATE();
+        -- =============================================
+        -- VALIDACIONES DE NEGOCIO
+        -- =============================================
         
-        -- 1. Validar referencia obligatoria: al menos tramite_id O inmueble_id
+        -- 1. ✅ VALIDACIÓN FLEXIBLE: Al menos uno debe tener valor
         IF @tramite_id IS NULL AND @inmueble_id IS NULL
         BEGIN
-            THROW 50101, 'Debe especificar al menos un tramite_id o un inmueble_id para la factura.', 1;
+            THROW 50101, 'Debe especificar al menos tramite_id O inmueble_id (o ambos).', 1;
         END
         
         -- 2. Validar que tramite_id existe (si tiene valor)
-        IF @tramite_id IS NOT NULL AND NOT EXISTS (SELECT 1 FROM dbo.Tramite WHERE tramite_id = @tramite_id)
+        IF @tramite_id IS NOT NULL
         BEGIN
-            THROW 50102, 'El tramite_id especificado no existe.', 1;
+            IF NOT EXISTS (SELECT 1 FROM dbo.Tramite WHERE tramite_id = @tramite_id)
+            BEGIN
+                THROW 50102, 'El tramite_id especificado no existe.', 1;
+            END
+            
+            -- ✅ Mensaje informativo
+            PRINT '  ℹ️  Factura asociada a TRÁMITE ID: ' + CAST(@tramite_id AS VARCHAR(10));
         END
         
         -- 3. Validar que inmueble_id existe (si tiene valor)
-        IF @inmueble_id IS NOT NULL AND NOT EXISTS (SELECT 1 FROM dbo.Inmueble WHERE inmueble_id = @inmueble_id)
+        IF @inmueble_id IS NOT NULL
         BEGIN
-            THROW 50103, 'El inmueble_id especificado no existe.', 1;
+            IF NOT EXISTS (SELECT 1 FROM dbo.Inmueble WHERE inmueble_id = @inmueble_id)
+            BEGIN
+                THROW 50103, 'El inmueble_id especificado no existe.', 1;
+            END
+            
+            -- ✅ Mensaje informativo
+            PRINT '  ℹ️  Factura asociada a INMUEBLE ID: ' + CAST(@inmueble_id AS VARCHAR(10));
         END
         
-        -- 4. Validar que usuario_id existe
+        -- 4. ✅ CASO ESPECIAL: Ambos presentes
+        IF @tramite_id IS NOT NULL AND @inmueble_id IS NOT NULL
+        BEGIN
+            PRINT '  ⚠️  ADVERTENCIA: Factura tiene AMBOS (trámite + inmueble)';
+            PRINT '     Recomendado solo para casos especiales (ej. cambio de uso con costo)';
+        END
+        
+        -- 5. Validar que usuario_id existe
         IF NOT EXISTS (SELECT 1 FROM dbo.Usuario WHERE usuario_id = @usuario_id)
         BEGIN
             THROW 50104, 'El usuario_id especificado no existe.', 1;
         END
         
-        -- 5. Calcular fecha_vencimiento (30 días después de fecha_emision)
+        -- =============================================
+        -- CONFIGURACIÓN DE FECHAS
+        -- =============================================
+        
+        -- Si fecha_emision es NULL, usar GETDATE()
+        IF @fecha_emision IS NULL
+            SET @fecha_emision = GETDATE();
+        
+        -- Calcular fecha_vencimiento (30 días después de fecha_emision)
         DECLARE @fecha_vencimiento DATE;
         SET @fecha_vencimiento = DATEADD(DAY, 30, CAST(@fecha_emision AS DATE));
         
-        -- 6. Autogenerar numero_factura con formato F-YYYYMMDD-####
+        -- =============================================
+        -- AUTOGENERACIÓN DE NÚMERO DE FACTURA
+        -- =============================================
+        
         DECLARE @fecha_str VARCHAR(8) = FORMAT(@fecha_emision, 'yyyyMMdd');
         DECLARE @ultimo_numero INT;
         
@@ -727,14 +764,16 @@ BEGIN
         -- Incrementar el número secuencial
         SET @numero_factura = 'F-' + @fecha_str + '-' + RIGHT('0000' + CAST(@ultimo_numero + 1 AS VARCHAR), 4);
         
-        -- 7. Inicializar montos en 0
-        -- NOTA: monto_base se calculará automáticamente al agregar detalles (trigger)
+        -- =============================================
+        -- INSERCIÓN DE LA FACTURA
+        -- =============================================
+        
+        -- Inicializar montos en 0 (se calcularán automáticamente desde detalles)
         DECLARE @monto_base DECIMAL(12,2) = 0;
         DECLARE @recargo DECIMAL(12,2) = 0;
         DECLARE @intereses DECIMAL(12,2) = 0;
         DECLARE @monto_total DECIMAL(12,2) = 0;
         
-        -- 8. Insertar la factura
         INSERT INTO dbo.Factura (
             numero_factura,
             fecha_emision,
@@ -758,18 +797,47 @@ BEGIN
             @intereses,
             @monto_total,
             'Pendiente',
-            @tramite_id,
-            @inmueble_id
+            @tramite_id,    -- ✅ Puede ser NULL
+            @inmueble_id    -- ✅ Puede ser NULL
         );
         
-        -- 9. Obtener el ID de la factura insertada
         SET @factura_id = SCOPE_IDENTITY();
         
         COMMIT TRANSACTION;
         
-        -- Mensaje de éxito
-        PRINT 'Factura emitida exitosamente: ' + @numero_factura + ' (ID: ' + CAST(@factura_id AS VARCHAR(10)) + ')';
-        PRINT 'NOTA: Agregue detalles con sp_insertar_detalle_factura para calcular el monto automáticamente.';
+        -- =============================================
+        -- MENSAJES DE ÉXITO
+        -- =============================================
+        
+        PRINT '';
+        PRINT '========================================';
+        PRINT '✅ FACTURA EMITIDA EXITOSAMENTE';
+        PRINT '========================================';
+        PRINT '   Número: ' + @numero_factura;
+        PRINT '   ID: ' + CAST(@factura_id AS VARCHAR(10));
+        PRINT '   Fecha emisión: ' + CONVERT(VARCHAR(10), @fecha_emision, 120);
+        PRINT '   Vencimiento: ' + CONVERT(VARCHAR(10), @fecha_vencimiento, 120);
+        
+        IF @tramite_id IS NOT NULL AND @inmueble_id IS NOT NULL
+        BEGIN
+            PRINT '   🔗 Trámite ID: ' + CAST(@tramite_id AS VARCHAR(10));
+            PRINT '   🏠 Inmueble ID: ' + CAST(@inmueble_id AS VARCHAR(10));
+        END
+        ELSE IF @tramite_id IS NOT NULL
+        BEGIN
+            PRINT '   🔗 Origen: TRÁMITE (ID: ' + CAST(@tramite_id AS VARCHAR(10)) + ')';
+        END
+        ELSE IF @inmueble_id IS NOT NULL
+        BEGIN
+            PRINT '   🏠 Origen: INMUEBLE (ID: ' + CAST(@inmueble_id AS VARCHAR(10)) + ')';
+        END
+        
+        PRINT '';
+        PRINT '   ⚠️  IMPORTANTE:';
+        PRINT '   - Agregue detalles con sp_insertar_detalle_factura';
+        PRINT '   - El monto_base se calculará automáticamente';
+        PRINT '========================================';
+        PRINT '';
         
     END TRY
     BEGIN CATCH
@@ -781,16 +849,19 @@ BEGIN
 END
 GO
 
-PRINT '✓ SP: sp_emitir_factura creado (CORREGIDO)';
-GO
-
 PRINT '';
 PRINT '========================================';
-PRINT '✓ STORED PROCEDURE - sp_emitir_factura';
-PRINT '  Factura con autogeneración de número';
-PRINT '  Formato: F-YYYYMMDD-####';
-PRINT '  NOTA: monto_base inicia en 0';
-PRINT '        Se calcula automáticamente al agregar detalles';
+PRINT '✅ sp_emitir_factura CORREGIDO';
+PRINT '   VALIDACIÓN DE NEGOCIO:';
+PRINT '   ✓ tramite_id: OPCIONAL';
+PRINT '   ✓ inmueble_id: OPCIONAL';
+PRINT '   ✓ Requisito: AL MENOS UNO debe tener valor';
+PRINT '   ✓ Permite: AMBOS con advertencia';
+PRINT '';
+PRINT '   CASOS DE USO:';
+PRINT '   1. Solo trámite: Permisos sin inmueble asociado';
+PRINT '   2. Solo inmueble: Servicios municipales recurrentes';
+PRINT '   3. Ambos: Trámites con inmueble (ej. cambio de uso)';
 PRINT '========================================';
 GO
 
@@ -872,63 +943,74 @@ BEGIN
         
         -- =============================================
         -- RESULTSET 2: Contribuyentes asociados
-        -- ✅ CAMBIO CRÍTICO: UN SOLO SELECT con UNION
+        -- ✅ SOLUCIÓN: Usar lógica de prioridad
+        -- Si tiene tramite_id → solo mostrar contribuyente del trámite
+        -- Si solo tiene inmueble_id → mostrar contribuyentes del inmueble
         -- =============================================
-        SELECT 
-            c.contribuyente_id,
-            c.tipo_contribuyente,
-            c.telefono,
-            c.email,
-            c.direccion,
-            CASE 
-                WHEN c.tipo_contribuyente = 'Física' 
-                THEN CONCAT(cf.nombre, ' ', cf.apellido1, ' ', ISNULL(cf.apellido2, ''))
-                ELSE cj.nombre_empresa
-            END AS nombre_completo,
-            CASE 
-                WHEN c.tipo_contribuyente = 'Física' 
-                THEN cf.cedula
-                ELSE cj.cedula_juridica
-            END AS cedula,
-            CAST(NULL AS DECIMAL(5,2)) AS porcentaje_propiedad,
-            'Tramite' AS origen
-        FROM dbo.Factura f
-        INNER JOIN dbo.Tramite t ON f.tramite_id = t.tramite_id
-        INNER JOIN dbo.Contribuyente c ON t.contribuyente_id = c.contribuyente_id
-        LEFT JOIN dbo.Contribuyente_fisico cf ON c.contribuyente_id = cf.contribuyente_id
-        LEFT JOIN dbo.Contribuyente_juridico cj ON c.contribuyente_id = cj.contribuyente_id
-        WHERE f.factura_id = @factura_id
-          AND f.tramite_id IS NOT NULL
-        
-        UNION ALL
+        DECLARE @tramite_id_factura INT;
+        DECLARE @inmueble_id_factura INT;
         
         SELECT 
-            c.contribuyente_id,
-            c.tipo_contribuyente,
-            c.telefono,
-            c.email,
-            c.direccion,
-            CASE 
-                WHEN c.tipo_contribuyente = 'Física' 
-                THEN CONCAT(cf.nombre, ' ', cf.apellido1, ' ', ISNULL(cf.apellido2, ''))
-                ELSE cj.nombre_empresa
-            END AS nombre_completo,
-            CASE 
-                WHEN c.tipo_contribuyente = 'Física' 
-                THEN cf.cedula
-                ELSE cj.cedula_juridica
-            END AS cedula,
-            ci.porcentaje_propiedad,
-            'Inmueble' AS origen
-        FROM dbo.Factura f
-        INNER JOIN dbo.Inmueble i ON f.inmueble_id = i.inmueble_id
-        INNER JOIN dbo.Contribuyente_Inmueble ci ON i.inmueble_id = ci.inmueble_id
-        INNER JOIN dbo.Contribuyente c ON ci.contribuyente_id = c.contribuyente_id
-        LEFT JOIN dbo.Contribuyente_fisico cf ON c.contribuyente_id = cf.contribuyente_id
-        LEFT JOIN dbo.Contribuyente_juridico cj ON c.contribuyente_id = cj.contribuyente_id
-        WHERE f.factura_id = @factura_id
-          AND f.inmueble_id IS NOT NULL
-        ORDER BY porcentaje_propiedad DESC;
+            @tramite_id_factura = tramite_id,
+            @inmueble_id_factura = inmueble_id
+        FROM dbo.Factura
+        WHERE factura_id = @factura_id;
+        
+        -- Prioridad: Si hay tramite_id, solo mostrar ese contribuyente
+        IF @tramite_id_factura IS NOT NULL
+        BEGIN
+            SELECT 
+                c.contribuyente_id,
+                c.tipo_contribuyente,
+                c.telefono,
+                c.email,
+                c.direccion,
+                CASE 
+                    WHEN c.tipo_contribuyente = 'Física' 
+                    THEN CONCAT(cf.nombre, ' ', cf.apellido1, ' ', ISNULL(cf.apellido2, ''))
+                    ELSE cj.nombre_empresa
+                END AS nombre_completo,
+                CASE 
+                    WHEN c.tipo_contribuyente = 'Física' 
+                    THEN cf.cedula
+                    ELSE cj.cedula_juridica
+                END AS cedula,
+                CAST(NULL AS DECIMAL(5,2)) AS porcentaje_propiedad,
+                'Tramite' AS origen
+            FROM dbo.Tramite t
+            INNER JOIN dbo.Contribuyente c ON t.contribuyente_id = c.contribuyente_id
+            LEFT JOIN dbo.Contribuyente_fisico cf ON c.contribuyente_id = cf.contribuyente_id
+            LEFT JOIN dbo.Contribuyente_juridico cj ON c.contribuyente_id = cj.contribuyente_id
+            WHERE t.tramite_id = @tramite_id_factura;
+        END
+        -- Solo si NO tiene tramite_id, mostrar contribuyentes del inmueble
+        ELSE IF @inmueble_id_factura IS NOT NULL
+        BEGIN
+            SELECT 
+                c.contribuyente_id,
+                c.tipo_contribuyente,
+                c.telefono,
+                c.email,
+                c.direccion,
+                CASE 
+                    WHEN c.tipo_contribuyente = 'Física' 
+                    THEN CONCAT(cf.nombre, ' ', cf.apellido1, ' ', ISNULL(cf.apellido2, ''))
+                    ELSE cj.nombre_empresa
+                END AS nombre_completo,
+                CASE 
+                    WHEN c.tipo_contribuyente = 'Física' 
+                    THEN cf.cedula
+                    ELSE cj.cedula_juridica
+                END AS cedula,
+                ci.porcentaje_propiedad,
+                'Inmueble' AS origen
+            FROM dbo.Contribuyente_Inmueble ci
+            INNER JOIN dbo.Contribuyente c ON ci.contribuyente_id = c.contribuyente_id
+            LEFT JOIN dbo.Contribuyente_fisico cf ON c.contribuyente_id = cf.contribuyente_id
+            LEFT JOIN dbo.Contribuyente_juridico cj ON c.contribuyente_id = cj.contribuyente_id
+            WHERE ci.inmueble_id = @inmueble_id_factura
+            ORDER BY ci.porcentaje_propiedad DESC;
+        END
         
         -- =============================================
         -- RESULTSET 3: Detalles/ítems de la factura
@@ -957,7 +1039,7 @@ BEGIN
 END
 GO
 
-PRINT '✅ sp_consultar_factura_por_id CORREGIDO - Ahora retorna EXACTAMENTE 3 RESULTSETS';
+PRINT '✅ sp_consultar_factura_por_id CORREGIDO - Prioridad: Tramite > Inmueble';
 GO
 
 
@@ -2214,16 +2296,6 @@ BEGIN
         
         COMMIT TRANSACTION;
         
-        -- Retornar información del pago registrado
-        PRINT '';
-        PRINT '========================================';
-        PRINT '✅ PAGO REGISTRADO EXITOSAMENTE';
-        PRINT '========================================';
-        PRINT 'Recibo: ' + @numero_recibo;
-        PRINT 'Monto pagado: ₡' + CAST(@monto_pagado AS VARCHAR(20));
-        PRINT '========================================';
-        PRINT '';
-        
         -- Retornar datos del pago
         SELECT 
             p.pago_id,
@@ -2686,6 +2758,14 @@ GO
 -- Ejecutar: El día 1 de cada mes/trimestre/año
 -- =============================================
 
+-- =============================================
+-- SP CORREGIDO: sp_generar_facturas_recurrentes
+-- Descripción: Genera facturas masivas para todos los inmuebles
+--              con servicios activos según periodicidad
+-- Ejecutar: El día 1 de cada mes/trimestre/año
+-- CORRECCIÓN: Usa CASE en lugar de ISNULL para tarifa_personalizada
+-- =============================================
+
 USE MunicipalidadNicoya;
 GO
 
@@ -2704,16 +2784,49 @@ BEGIN
         -- VALIDACIONES INICIALES
         -- =============================================
         
-        -- Validar que el periodo sea día 1 del mes
+        -- 1. Validar que el periodo sea día 1 del mes
         IF DAY(@periodo) <> 1
         BEGIN
             THROW 50301, 'El periodo debe ser el primer día del mes (ejemplo: 2025-02-01)', 1;
         END
         
-        -- Validar que el usuario existe
+        -- 2. Validar que el usuario existe
         IF NOT EXISTS (SELECT 1 FROM dbo.Usuario WHERE usuario_id = @usuario_id)
         BEGIN
             THROW 50302, 'El usuario especificado no existe', 1;
+        END
+        
+        -- 3. Validar que NO existan facturas ya generadas para este periodo
+        IF EXISTS (
+            SELECT 1 
+            FROM dbo.Factura 
+            WHERE inmueble_id IS NOT NULL
+              AND periodo = @periodo
+              AND tramite_id IS NULL
+              AND estado_factura != 'Cancelada'
+        )
+        BEGIN
+            DECLARE @facturas_existentes INT;
+            SELECT @facturas_existentes = COUNT(*)
+            FROM dbo.Factura 
+            WHERE inmueble_id IS NOT NULL
+              AND periodo = @periodo
+              AND tramite_id IS NULL
+              AND estado_factura != 'Cancelada';
+            
+            PRINT '';
+            PRINT '========================================';
+            PRINT '⚠️  ADVERTENCIA: FACTURAS YA EXISTENTES';
+            PRINT '========================================';
+            PRINT '   Periodo: ' + CONVERT(VARCHAR(10), @periodo, 120);
+            PRINT '   Facturas encontradas: ' + CAST(@facturas_existentes AS VARCHAR(10));
+            PRINT '';
+            PRINT '   Para regenerar facturas:';
+            PRINT '   1. Cancele las facturas existentes con sp_cancelar_factura';
+            PRINT '   2. Vuelva a ejecutar este procedimiento';
+            PRINT '========================================';
+            PRINT '';
+            RETURN;
         END
         
         -- Variables de control
@@ -2722,13 +2835,16 @@ BEGIN
         DECLARE @anio_periodo INT = YEAR(@periodo);
         DECLARE @facturas_generadas INT = 0;
         DECLARE @servicios_facturados INT = 0;
+        DECLARE @inmuebles_omitidos INT = 0;
         
         PRINT '';
         PRINT '========================================';
         PRINT '🔄 GENERACIÓN DE FACTURAS RECURRENTES';
+        PRINT '========================================';
         PRINT '   Periodo: ' + CONVERT(VARCHAR(10), @periodo, 120);
         PRINT '   Mes: ' + CAST(@mes_periodo AS VARCHAR(2));
         PRINT '   Año: ' + CAST(@anio_periodo AS VARCHAR(4));
+        PRINT '   Usuario: ' + CAST(@usuario_id AS VARCHAR(10));
         PRINT '========================================';
         PRINT '';
         
@@ -2763,6 +2879,7 @@ BEGIN
                   INNER JOIN dbo.Detalle_factura df ON f.factura_id = df.factura_id
                   WHERE f.inmueble_id = si.inmueble_id
                     AND df.rubro_id = si.rubro_id
+                    AND f.estado_factura != 'Cancelada'
               ))
           )
         GROUP BY si.inmueble_id
@@ -2770,7 +2887,7 @@ BEGIN
         
         DECLARE @total_inmuebles INT = (SELECT COUNT(*) FROM #InmueblesConServicios);
         
-        PRINT '📋 Inmuebles a procesar: ' + CAST(@total_inmuebles AS VARCHAR(10));
+        PRINT '📋 Inmuebles con servicios activos: ' + CAST(@total_inmuebles AS VARCHAR(10));
         PRINT '';
         
         IF @total_inmuebles = 0
@@ -2798,6 +2915,21 @@ BEGIN
         WHILE @@FETCH_STATUS = 0
         BEGIN
             BEGIN TRY
+                -- Verificar que el inmueble tenga contribuyentes
+                IF NOT EXISTS (
+                    SELECT 1 
+                    FROM dbo.Contribuyente_Inmueble 
+                    WHERE inmueble_id = @inmueble_id
+                )
+                BEGIN
+                    PRINT '  ⚠️  Inmueble ID ' + CAST(@inmueble_id AS VARCHAR(10)) + 
+                          ' sin contribuyentes asociados - OMITIDO';
+                    SET @inmuebles_omitidos = @inmuebles_omitidos + 1;
+                    
+                    FETCH NEXT FROM cursor_inmuebles INTO @inmueble_id;
+                    CONTINUE;
+                END
+                
                 BEGIN TRANSACTION;
                 
                 -- 1. Crear la factura para este inmueble
@@ -2818,12 +2950,20 @@ BEGIN
                 DECLARE @nombre_servicio VARCHAR(100);
                 DECLARE @detalle_factura_id INT;
                 
+                -- =============================================
+                -- ✅ CORRECCIÓN APLICADA: CASE en lugar de ISNULL
+                -- =============================================
                 DECLARE cursor_servicios CURSOR FOR
                 SELECT 
                     si.servicio_inmueble_id,
                     si.rubro_id,
                     r.nombre AS nombre_servicio,
-                    ISNULL(si.tarifa_personalizada, r.tarifa_base) AS monto_unitario
+                    -- ✅ CAMBIO CRÍTICO: Manejar tarifa_personalizada = 0
+                    CASE 
+                        WHEN si.tarifa_personalizada IS NULL OR si.tarifa_personalizada = 0 
+                        THEN r.tarifa_base 
+                        ELSE si.tarifa_personalizada 
+                    END AS monto_unitario
                 FROM dbo.Servicio_Inmueble si
                 INNER JOIN dbo.Rubro r ON si.rubro_id = r.rubro_id
                 WHERE si.inmueble_id = @inmueble_id
@@ -2838,6 +2978,7 @@ BEGIN
                           INNER JOIN dbo.Detalle_factura df ON f.factura_id = df.factura_id
                           WHERE f.inmueble_id = si.inmueble_id
                             AND df.rubro_id = si.rubro_id
+                            AND f.estado_factura != 'Cancelada'
                       ))
                   );
                 
@@ -2875,7 +3016,7 @@ BEGIN
                 -- Log de progreso cada 50 facturas
                 IF @facturas_generadas % 50 = 0
                 BEGIN
-                    PRINT '  ✓ Procesadas: ' + CAST(@facturas_generadas AS VARCHAR(10)) + ' facturas';
+                    PRINT '  ✓ Procesadas: ' + CAST(@facturas_generadas AS VARCHAR(10)) + ' facturas...';
                 END
                 
             END TRY
@@ -2884,7 +3025,15 @@ BEGIN
                     ROLLBACK TRANSACTION;
                 
                 -- Log del error pero continuar con el siguiente inmueble
-                PRINT '  ❌ Error en inmueble ' + CAST(@inmueble_id AS VARCHAR(10)) + ': ' + ERROR_MESSAGE();
+                PRINT '  ❌ Error en inmueble ID ' + CAST(@inmueble_id AS VARCHAR(10)) + 
+                      ': ' + ERROR_MESSAGE();
+                
+                -- Limpiar cursor de servicios si quedó abierto
+                IF CURSOR_STATUS('local', 'cursor_servicios') >= 0
+                BEGIN
+                    CLOSE cursor_servicios;
+                    DEALLOCATE cursor_servicios;
+                END
             END CATCH
             
             FETCH NEXT FROM cursor_inmuebles INTO @inmueble_id;
@@ -2900,13 +3049,42 @@ BEGIN
         -- RESUMEN DE EJECUCIÓN
         -- =============================================
         
+        DECLARE @promedio_servicios VARCHAR(10) = '0';
+        IF @facturas_generadas > 0
+        BEGIN
+            SET @promedio_servicios = CAST(
+                CAST(@servicios_facturados AS FLOAT) / @facturas_generadas AS VARCHAR(10)
+            );
+        END
+        
         PRINT '';
         PRINT '========================================';
         PRINT '✅ GENERACIÓN COMPLETADA';
+        PRINT '========================================';
         PRINT '   Facturas generadas: ' + CAST(@facturas_generadas AS VARCHAR(10));
         PRINT '   Servicios facturados: ' + CAST(@servicios_facturados AS VARCHAR(10));
-        PRINT '   Promedio servicios/factura: ' + CAST(CAST(@servicios_facturados AS FLOAT) / NULLIF(@facturas_generadas, 0) AS VARCHAR(10));
+        PRINT '   Promedio servicios/factura: ' + @promedio_servicios;
+        
+        IF @inmuebles_omitidos > 0
+        BEGIN
+            PRINT '';
+            PRINT '   ⚠️  Inmuebles omitidos: ' + CAST(@inmuebles_omitidos AS VARCHAR(10));
+            PRINT '      Motivo: Sin contribuyentes asociados';
+        END
+        
         PRINT '========================================';
+        PRINT '';
+        
+        -- Mostrar resumen de montos
+        DECLARE @monto_total_generado DECIMAL(12,2);
+        SELECT @monto_total_generado = ISNULL(SUM(monto_total), 0)
+        FROM dbo.Factura
+        WHERE periodo = @periodo
+          AND inmueble_id IS NOT NULL
+          AND tramite_id IS NULL
+          AND estado_factura != 'Cancelada';
+        
+        PRINT '💰 Monto total facturado: ₡' + CAST(@monto_total_generado AS VARCHAR(20));
         PRINT '';
         
     END TRY
@@ -2915,14 +3093,28 @@ BEGIN
             ROLLBACK TRANSACTION;
         
         -- Limpiar recursos
-        IF CURSOR_STATUS('global', 'cursor_servicios') >= 0
+        IF CURSOR_STATUS('local', 'cursor_servicios') >= 0
+        BEGIN
+            CLOSE cursor_servicios;
             DEALLOCATE cursor_servicios;
+        END
             
-        IF CURSOR_STATUS('global', 'cursor_inmuebles') >= 0
+        IF CURSOR_STATUS('local', 'cursor_inmuebles') >= 0
+        BEGIN
+            CLOSE cursor_inmuebles;
             DEALLOCATE cursor_inmuebles;
+        END
             
         IF OBJECT_ID('tempdb..#InmueblesConServicios') IS NOT NULL
             DROP TABLE #InmueblesConServicios;
+        
+        PRINT '';
+        PRINT '========================================';
+        PRINT '❌ ERROR EN GENERACIÓN DE FACTURAS';
+        PRINT '========================================';
+        PRINT '   ' + ERROR_MESSAGE();
+        PRINT '========================================';
+        PRINT '';
         
         THROW;
     END CATCH
@@ -2931,19 +3123,25 @@ GO
 
 PRINT '';
 PRINT '========================================';
-PRINT '✅ sp_generar_facturas_recurrentes CREADO';
+PRINT '✅ sp_generar_facturas_recurrentes CORREGIDO';
+PRINT '========================================';
+PRINT '   CORRECCIÓN APLICADA:';
+PRINT '   ✓ Usa CASE en lugar de ISNULL';
+PRINT '   ✓ Detecta tarifa_personalizada = 0';
+PRINT '   ✓ Usa tarifa_base cuando corresponde';
+PRINT '';
 PRINT '   FUNCIONALIDADES:';
-PRINT '   ✓ Genera facturas masivas para servicios activos';
-PRINT '   ✓ Respeta periodicidad (Mensual/Trimestral/Anual/Único)';
-PRINT '   ✓ Usa tarifa_personalizada o tarifa_base';
-PRINT '   ✓ Maneja errores individualmente (continúa con siguiente)';
-PRINT '   ✓ Log de progreso cada 50 facturas';
+PRINT '   ✓ Validación anti-duplicados';
+PRINT '   ✓ Omite inmuebles sin contribuyentes';
+PRINT '   ✓ Muestra monto total facturado';
+PRINT '   ✓ Mejor manejo de errores';
 PRINT '';
 PRINT '   EJEMPLO DE USO:';
-PRINT '   EXEC sp_generar_facturas_recurrentes @periodo = ''2025-02-01'';';
+PRINT '   EXEC sp_generar_facturas_recurrentes';
+PRINT '        @periodo = ''2025-12-01'',';
+PRINT '        @usuario_id = 1;';
 PRINT '========================================';
 GO
-
 
 
 
