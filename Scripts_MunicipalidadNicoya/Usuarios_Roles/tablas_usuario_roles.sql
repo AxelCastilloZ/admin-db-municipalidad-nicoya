@@ -1,22 +1,5 @@
-﻿-- =============================================
--- MÓDULO: USUARIOS Y ROLES
--- Script: Creación de Tablas
--- Descripción: Tablas para autenticación y control de acceso
--- =============================================
+﻿
 
-USE MunicipalidadNicoya;
-GO
-
--- =============================================
--- ELIMINAR TABLAS SI EXISTEN
--- =============================================
-IF OBJECT_ID('dbo.Usuario', 'U') IS NOT NULL
-    DROP TABLE dbo.Usuario;
-GO
-
-IF OBJECT_ID('dbo.Rol', 'U') IS NOT NULL
-    DROP TABLE dbo.Rol;
-GO
 
 -- =============================================
 -- TABLA: Rol
