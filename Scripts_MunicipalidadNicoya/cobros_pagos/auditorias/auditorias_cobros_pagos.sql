@@ -1,17 +1,15 @@
-﻿
-
-
-
-
+﻿-- =============================================
+-- AUDITORÍA: FACTURAS Y PAGOS
+-- Descripción: Sistema de auditoría para rastrear cambios
+-- en las tablas Factura y Pago
 -- =============================================
--- AUDITORIA : FACTURAS Y PAGOS
--- =============================================
+
 USE MunicipalidadNicoya;
 GO
 
 PRINT '';
 PRINT '========================================';
-PRINT ' AUDITORIA';
+PRINT '🔍 IMPLEMENTANDO AUDITORÍA';
 PRINT '   Tablas: Factura y Pago';
 PRINT '========================================';
 PRINT '';
@@ -19,7 +17,7 @@ PRINT '';
 -- =============================================
 -- PASO 1: Crear tabla de auditoría para FACTURA
 -- =============================================
-PRINT ' Creando tabla Factura_Auditoria...';
+PRINT '📋 Creando tabla Factura_Auditoria...';
 
 IF OBJECT_ID('dbo.Factura_Auditoria', 'U') IS NOT NULL
     DROP TABLE dbo.Factura_Auditoria;
@@ -36,16 +34,16 @@ CREATE TABLE dbo.Factura_Auditoria
     
     -- Datos ANTES del cambio (solo para UPDATE y DELETE)
     monto_base_anterior DECIMAL(12,2),
-    monto_recargo_anterior DECIMAL(12,2),
-    monto_interes_anterior DECIMAL(12,2),
+    recargo_anterior DECIMAL(12,2),
+    intereses_anterior DECIMAL(12,2),
     monto_total_anterior DECIMAL(12,2),
     estado_factura_anterior VARCHAR(20),
     fecha_vencimiento_anterior DATE,
     
     -- Datos DESPUÉS del cambio (solo para INSERT y UPDATE)
     monto_base_nuevo DECIMAL(12,2),
-    monto_recargo_nuevo DECIMAL(12,2),
-    monto_interes_nuevo DECIMAL(12,2),
+    recargo_nuevo DECIMAL(12,2),
+    intereses_nuevo DECIMAL(12,2),
     monto_total_nuevo DECIMAL(12,2),
     estado_factura_nuevo VARCHAR(20),
     fecha_vencimiento_nuevo DATE,
@@ -56,13 +54,13 @@ CREATE TABLE dbo.Factura_Auditoria
 );
 GO
 
-PRINT '   Tabla Factura_Auditoria creada';
+PRINT '  ✓ Tabla Factura_Auditoria creada';
 PRINT '';
 
 -- =============================================
 -- PASO 2: Crear tabla de auditoría para PAGO
 -- =============================================
-PRINT ' Creando tabla Pago_Auditoria...';
+PRINT '📋 Creando tabla Pago_Auditoria...';
 
 IF OBJECT_ID('dbo.Pago_Auditoria', 'U') IS NOT NULL
     DROP TABLE dbo.Pago_Auditoria;
@@ -80,16 +78,16 @@ CREATE TABLE dbo.Pago_Auditoria
     -- Datos ANTES del cambio (solo para UPDATE y DELETE)
     factura_id_anterior INT,
     monto_pagado_anterior DECIMAL(12,2),
-    fecha_pago_anterior DATETIME,
-    medio_pago_anterior VARCHAR(50),
-    referencia_pago_anterior VARCHAR(100),
+    fecha_pago_anterior DATE,
+    medio_pago_anterior VARCHAR(20),
+    usuario_id_anterior INT,
     
     -- Datos DESPUÉS del cambio (solo para INSERT y UPDATE)
     factura_id_nuevo INT,
     monto_pagado_nuevo DECIMAL(12,2),
-    fecha_pago_nuevo DATETIME,
-    medio_pago_nuevo VARCHAR(50),
-    referencia_pago_nuevo VARCHAR(100),
+    fecha_pago_nuevo DATE,
+    medio_pago_nuevo VARCHAR(20),
+    usuario_id_nuevo INT,
     
     -- Metadata
     fecha_cambio DATETIME NOT NULL DEFAULT GETDATE(),
@@ -97,13 +95,13 @@ CREATE TABLE dbo.Pago_Auditoria
 );
 GO
 
-PRINT '   Tabla Pago_Auditoria creada';
+PRINT '  ✓ Tabla Pago_Auditoria creada';
 PRINT '';
 
 -- =============================================
 -- PASO 3: Trigger para INSERT en Factura
 -- =============================================
-PRINT ' Creando triggers para Factura...';
+PRINT '🔧 Creando triggers para Factura...';
 
 DROP TRIGGER IF EXISTS dbo.trg_Factura_Auditoria_Insert;
 GO
@@ -120,8 +118,8 @@ BEGIN
         numero_factura,
         accion,
         monto_base_nuevo,
-        monto_recargo_nuevo,
-        monto_interes_nuevo,
+        recargo_nuevo,
+        intereses_nuevo,
         monto_total_nuevo,
         estado_factura_nuevo,
         fecha_vencimiento_nuevo,
@@ -133,8 +131,8 @@ BEGIN
         i.numero_factura,
         'INSERT',
         i.monto_base,
-        i.monto_recargo,
-        i.monto_interes,
+        i.recargo,
+        i.intereses,
         i.monto_total,
         i.estado_factura,
         i.fecha_vencimiento,
@@ -144,7 +142,7 @@ BEGIN
 END
 GO
 
-PRINT '  trg_Factura_Auditoria_Insert creado';
+PRINT '  ✓ trg_Factura_Auditoria_Insert creado';
 
 -- =============================================
 -- PASO 4: Trigger para UPDATE en Factura
@@ -165,15 +163,15 @@ BEGIN
         accion,
         -- Datos anteriores (deleted)
         monto_base_anterior,
-        monto_recargo_anterior,
-        monto_interes_anterior,
+        recargo_anterior,
+        intereses_anterior,
         monto_total_anterior,
         estado_factura_anterior,
         fecha_vencimiento_anterior,
         -- Datos nuevos (inserted)
         monto_base_nuevo,
-        monto_recargo_nuevo,
-        monto_interes_nuevo,
+        recargo_nuevo,
+        intereses_nuevo,
         monto_total_nuevo,
         estado_factura_nuevo,
         fecha_vencimiento_nuevo,
@@ -186,15 +184,15 @@ BEGIN
         'UPDATE',
         -- Anteriores
         d.monto_base,
-        d.monto_recargo,
-        d.monto_interes,
+        d.recargo,
+        d.intereses,
         d.monto_total,
         d.estado_factura,
         d.fecha_vencimiento,
         -- Nuevos
         i.monto_base,
-        i.monto_recargo,
-        i.monto_interes,
+        i.recargo,
+        i.intereses,
         i.monto_total,
         i.estado_factura,
         i.fecha_vencimiento,
@@ -205,7 +203,7 @@ BEGIN
 END
 GO
 
-PRINT '  trg_Factura_Auditoria_Update creado';
+PRINT '  ✓ trg_Factura_Auditoria_Update creado';
 
 -- =============================================
 -- PASO 5: Trigger para DELETE en Factura
@@ -225,8 +223,8 @@ BEGIN
         numero_factura,
         accion,
         monto_base_anterior,
-        monto_recargo_anterior,
-        monto_interes_anterior,
+        recargo_anterior,
+        intereses_anterior,
         monto_total_anterior,
         estado_factura_anterior,
         fecha_vencimiento_anterior,
@@ -238,8 +236,8 @@ BEGIN
         d.numero_factura,
         'DELETE',
         d.monto_base,
-        d.monto_recargo,
-        d.monto_interes,
+        d.recargo,
+        d.intereses,
         d.monto_total,
         d.estado_factura,
         d.fecha_vencimiento,
@@ -255,7 +253,7 @@ PRINT '';
 -- =============================================
 -- PASO 6: Trigger para INSERT en Pago
 -- =============================================
-PRINT ' Creando triggers para Pago...';
+PRINT '🔧 Creando triggers para Pago...';
 
 DROP TRIGGER IF EXISTS dbo.trg_Pago_Auditoria_Insert;
 GO
@@ -275,7 +273,7 @@ BEGIN
         monto_pagado_nuevo,
         fecha_pago_nuevo,
         medio_pago_nuevo,
-        referencia_pago_nuevo,
+        usuario_id_nuevo,
         fecha_cambio,
         usuario_cambio
     )
@@ -287,14 +285,14 @@ BEGIN
         i.monto_pagado,
         i.fecha_pago,
         i.medio_pago,
-        i.referencia_pago,
+        i.usuario_id,
         GETDATE(),
         SUSER_NAME()
     FROM inserted i;
 END
 GO
 
-PRINT '   trg_Pago_Auditoria_Insert creado';
+PRINT '  ✓ trg_Pago_Auditoria_Insert creado';
 
 -- =============================================
 -- PASO 7: Trigger para UPDATE en Pago
@@ -318,13 +316,13 @@ BEGIN
         monto_pagado_anterior,
         fecha_pago_anterior,
         medio_pago_anterior,
-        referencia_pago_anterior,
+        usuario_id_anterior,
         -- Datos nuevos
         factura_id_nuevo,
         monto_pagado_nuevo,
         fecha_pago_nuevo,
         medio_pago_nuevo,
-        referencia_pago_nuevo,
+        usuario_id_nuevo,
         fecha_cambio,
         usuario_cambio
     )
@@ -337,13 +335,13 @@ BEGIN
         d.monto_pagado,
         d.fecha_pago,
         d.medio_pago,
-        d.referencia_pago,
+        d.usuario_id,
         -- Nuevos
         i.factura_id,
         i.monto_pagado,
         i.fecha_pago,
         i.medio_pago,
-        i.referencia_pago,
+        i.usuario_id,
         GETDATE(),
         SUSER_NAME()
     FROM inserted i
@@ -351,7 +349,7 @@ BEGIN
 END
 GO
 
-PRINT '  trg_Pago_Auditoria_Update creado';
+PRINT '  ✓ trg_Pago_Auditoria_Update creado';
 
 -- =============================================
 -- PASO 8: Trigger para DELETE en Pago
@@ -374,7 +372,7 @@ BEGIN
         monto_pagado_anterior,
         fecha_pago_anterior,
         medio_pago_anterior,
-        referencia_pago_anterior,
+        usuario_id_anterior,
         fecha_cambio,
         usuario_cambio
     )
@@ -386,23 +384,26 @@ BEGIN
         d.monto_pagado,
         d.fecha_pago,
         d.medio_pago,
-        d.referencia_pago,
+        d.usuario_id,
         GETDATE(),
         SUSER_NAME()
     FROM deleted d;
 END
 GO
 
-PRINT '  trg_Pago_Auditoria_Delete creado';
+PRINT '  ✓ trg_Pago_Auditoria_Delete creado';
 PRINT '';
 
 -- =============================================
--- PASO 9: Crear SPs para consultar auditoría
+-- PASO 9: Crear Stored Procedures de consulta
 -- =============================================
-PRINT ' Creando Stored Procedures de consulta...';
+PRINT '📦 Creando Stored Procedures de consulta...';
 
--- SP: Ver historial de una factura
-CREATE OR ALTER PROCEDURE sp_Factura_ConsultarHistorial
+-- SP: Ver historial completo de una factura
+DROP PROCEDURE IF EXISTS dbo.sp_Factura_ConsultarHistorial;
+GO
+
+CREATE PROCEDURE dbo.sp_Factura_ConsultarHistorial
     @factura_id INT
 AS
 BEGIN
@@ -413,22 +414,33 @@ BEGIN
         factura_id,
         numero_factura,
         accion,
+        monto_base_anterior,
+        monto_base_nuevo,
+        recargo_anterior,
+        recargo_nuevo,
+        intereses_anterior,
+        intereses_nuevo,
         monto_total_anterior,
         monto_total_nuevo,
         estado_factura_anterior,
         estado_factura_nuevo,
+        fecha_vencimiento_anterior,
+        fecha_vencimiento_nuevo,
         fecha_cambio,
         usuario_cambio
-    FROM Factura_Auditoria
+    FROM dbo.Factura_Auditoria
     WHERE factura_id = @factura_id
     ORDER BY fecha_cambio DESC;
 END
 GO
 
-PRINT '   sp_Factura_ConsultarHistorial creado';
+PRINT '  ✓ sp_Factura_ConsultarHistorial creado';
 
--- SP: Ver historial de un pago
-CREATE OR ALTER PROCEDURE sp_Pago_ConsultarHistorial
+-- SP: Ver historial completo de un pago
+DROP PROCEDURE IF EXISTS dbo.sp_Pago_ConsultarHistorial;
+GO
+
+CREATE PROCEDURE dbo.sp_Pago_ConsultarHistorial
     @pago_id INT
 AS
 BEGIN
@@ -439,49 +451,111 @@ BEGIN
         pago_id,
         numero_recibo,
         accion,
+        factura_id_anterior,
+        factura_id_nuevo,
         monto_pagado_anterior,
         monto_pagado_nuevo,
+        fecha_pago_anterior,
+        fecha_pago_nuevo,
         medio_pago_anterior,
         medio_pago_nuevo,
+        usuario_id_anterior,
+        usuario_id_nuevo,
         fecha_cambio,
         usuario_cambio
-    FROM Pago_Auditoria
+    FROM dbo.Pago_Auditoria
     WHERE pago_id = @pago_id
     ORDER BY fecha_cambio DESC;
 END
 GO
 
-PRINT '  sp_Pago_ConsultarHistorial creado';
+PRINT '  ✓ sp_Pago_ConsultarHistorial creado';
 
--- SP: Ver auditoría por fecha
-CREATE OR ALTER PROCEDURE sp_Auditoria_ConsultarPorFecha
+-- SP: Ver auditoría por rango de fechas
+DROP PROCEDURE IF EXISTS dbo.sp_Auditoria_ConsultarPorFecha;
+GO
+
+CREATE PROCEDURE dbo.sp_Auditoria_ConsultarPorFecha
     @fecha_inicio DATETIME,
     @fecha_fin DATETIME
 AS
 BEGIN
     SET NOCOUNT ON;
     
-    SELECT 'FACTURA' AS tipo, * 
-    FROM Factura_Auditoria
+    SELECT 
+        'FACTURA' AS tipo_registro,
+        auditoria_id,
+        factura_id AS registro_id,
+        numero_factura AS numero_documento,
+        accion,
+        monto_total_anterior,
+        monto_total_nuevo,
+        estado_factura_anterior AS estado_anterior,
+        estado_factura_nuevo AS estado_nuevo,
+        fecha_cambio,
+        usuario_cambio
+    FROM dbo.Factura_Auditoria
     WHERE fecha_cambio BETWEEN @fecha_inicio AND @fecha_fin
     
     UNION ALL
     
-    SELECT 'PAGO' AS tipo, * 
-    FROM Pago_Auditoria
+    SELECT 
+        'PAGO' AS tipo_registro,
+        auditoria_id,
+        pago_id AS registro_id,
+        numero_recibo AS numero_documento,
+        accion,
+        monto_pagado_anterior AS monto_total_anterior,
+        monto_pagado_nuevo AS monto_total_nuevo,
+        medio_pago_anterior AS estado_anterior,
+        medio_pago_nuevo AS estado_nuevo,
+        fecha_cambio,
+        usuario_cambio
+    FROM dbo.Pago_Auditoria
     WHERE fecha_cambio BETWEEN @fecha_inicio AND @fecha_fin
     
     ORDER BY fecha_cambio DESC;
 END
 GO
 
-PRINT '  sp_Auditoria_ConsultarPorFecha creado';
+PRINT '  ✓ sp_Auditoria_ConsultarPorFecha creado';
 PRINT '';
 
 -- =============================================
--- VERIFICACIÓN
+-- VERIFICACIÓN Y EJEMPLOS DE USO
 -- =============================================
 PRINT '========================================';
-PRINT ' AUDITORÍA IMPLEMENTADA EXITOSAMENTE';
+PRINT '✅ AUDITORÍA IMPLEMENTADA EXITOSAMENTE';
+PRINT '========================================';
+PRINT '';
+PRINT '📊 Resumen de componentes creados:';
+PRINT '  • Tablas de auditoría: 2';
+PRINT '    - Factura_Auditoria';
+PRINT '    - Pago_Auditoria';
+PRINT '  • Triggers: 6';
+PRINT '    - Factura: INSERT, UPDATE, DELETE';
+PRINT '    - Pago: INSERT, UPDATE, DELETE';
+PRINT '  • Stored Procedures: 3';
+PRINT '    - sp_Factura_ConsultarHistorial';
+PRINT '    - sp_Pago_ConsultarHistorial';
+PRINT '    - sp_Auditoria_ConsultarPorFecha';
+PRINT '';
+PRINT '🔍 Ejemplos de uso:';
+PRINT '';
+PRINT '-- Ver historial de cambios de factura 1:';
+PRINT 'EXEC sp_Factura_ConsultarHistorial @factura_id = 1;';
+PRINT '';
+PRINT '-- Ver historial de cambios de pago 1:';
+PRINT 'EXEC sp_Pago_ConsultarHistorial @pago_id = 1;';
+PRINT '';
+PRINT '-- Ver todos los cambios de hoy:';
+PRINT 'DECLARE @hoy_inicio DATETIME = CAST(CAST(GETDATE() AS DATE) AS DATETIME);';
+PRINT 'DECLARE @hoy_fin DATETIME = DATEADD(SECOND, -1, DATEADD(DAY, 1, @hoy_inicio));';
+PRINT 'EXEC sp_Auditoria_ConsultarPorFecha @fecha_inicio = @hoy_inicio, @fecha_fin = @hoy_fin;';
+PRINT '';
+PRINT '-- Consulta directa a las tablas:';
+PRINT 'SELECT * FROM Factura_Auditoria WHERE factura_id = 1 ORDER BY fecha_cambio DESC;';
+PRINT 'SELECT * FROM Pago_Auditoria WHERE pago_id = 1 ORDER BY fecha_cambio DESC;';
+PRINT '';
 PRINT '========================================';
 GO
