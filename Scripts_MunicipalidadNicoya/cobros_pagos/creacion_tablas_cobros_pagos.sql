@@ -1,524 +1,272 @@
 ﻿-- =============================================
--- AUDITORÍA: FACTURAS Y PAGOS (VERSIÓN FINAL)
--- Ajustado a la estructura real de las tablas
+
+
+
+
+
+
+-- MÓDULO: COBROS Y PAGOS
+-- Script: Creación de Tablas
+-- Descripción: Tablas para gestión de facturas, pagos y rubros
 -- =============================================
+
 USE MunicipalidadNicoya;
 GO
 
-PRINT '';
-PRINT '========================================';
-PRINT '🔍 IMPLEMENTANDO AUDITORÍA SIMPLE';
-PRINT '   Tablas: Factura y Pago';
-PRINT '========================================';
-PRINT '';
-
 -- =============================================
--- PASO 1: Crear tabla de auditoría para FACTURA
+-- ELIMINAR RESTRICCIONES FK ANTES DE DROP
 -- =============================================
-PRINT '📋 Creando tabla Factura_Auditoria...';
 
-IF OBJECT_ID('dbo.Factura_Auditoria', 'U') IS NOT NULL
-    DROP TABLE dbo.Factura_Auditoria;
+IF EXISTS (SELECT * FROM sys.foreign_keys WHERE name = 'FK_Pago_Factura')
+    ALTER TABLE dbo.Pago DROP CONSTRAINT FK_Pago_Factura;
+
+IF EXISTS (SELECT * FROM sys.foreign_keys WHERE name = 'FK_Pago_Usuario')
+    ALTER TABLE dbo.Pago DROP CONSTRAINT FK_Pago_Usuario;
+
+IF EXISTS (SELECT * FROM sys.foreign_keys WHERE name = 'FK_DetalleFactura_Factura')
+    ALTER TABLE dbo.Detalle_factura DROP CONSTRAINT FK_DetalleFactura_Factura;
+
+IF EXISTS (SELECT * FROM sys.foreign_keys WHERE name = 'FK_DetalleFactura_Rubro')
+    ALTER TABLE dbo.Detalle_factura DROP CONSTRAINT FK_DetalleFactura_Rubro;
+
+IF EXISTS (SELECT * FROM sys.foreign_keys WHERE name = 'FK_Factura_Tramite')
+    ALTER TABLE dbo.Factura DROP CONSTRAINT FK_Factura_Tramite;
+
+IF EXISTS (SELECT * FROM sys.foreign_keys WHERE name = 'FK_Factura_Inmueble')
+    ALTER TABLE dbo.Factura DROP CONSTRAINT FK_Factura_Inmueble;
+
+-- Índices
+IF EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_Factura_EstadoFactura')
+    DROP INDEX IX_Factura_EstadoFactura ON dbo.Factura;
+
+IF EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_Factura_FechaEmision')
+    DROP INDEX IX_Factura_FechaEmision ON dbo.Factura;
+
+IF EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_Factura_TramiteId')
+    DROP INDEX IX_Factura_TramiteId ON dbo.Factura;
+
+IF EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_Factura_InmuebleId')
+    DROP INDEX IX_Factura_InmuebleId ON dbo.Factura;
+
+IF EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_Pago_FacturaId')
+    DROP INDEX IX_Pago_FacturaId ON dbo.Pago;
+
+IF EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_Pago_FechaPago')
+    DROP INDEX IX_Pago_FechaPago ON dbo.Pago;
+
+IF EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_DetalleFactura_FacturaId')
+    DROP INDEX IX_DetalleFactura_FacturaId ON dbo.Detalle_factura;
+
+IF EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_DetalleFactura_RubroId')
+    DROP INDEX IX_DetalleFactura_RubroId ON dbo.Detalle_factura;
+
+IF EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_Rubro_Vigencia')
+    DROP INDEX IX_Rubro_Vigencia ON dbo.Rubro;
+
+IF EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_Auditoria_TablaAfectada')
+    DROP INDEX IX_Auditoria_TablaAfectada ON dbo.Auditoria;
+
+IF EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_Auditoria_FechaHora')
+    DROP INDEX IX_Auditoria_FechaHora ON dbo.Auditoria;
 GO
 
-CREATE TABLE dbo.Factura_Auditoria
+PRINT '✓ Restricciones e índices eliminados';
+GO
+
+-- =============================================
+-- ELIMINAR TABLAS SI EXISTEN
+-- =============================================
+
+IF OBJECT_ID('dbo.Pago', 'U') IS NOT NULL
+    DROP TABLE dbo.Pago;
+GO
+
+IF OBJECT_ID('dbo.Detalle_factura', 'U') IS NOT NULL
+    DROP TABLE dbo.Detalle_factura;
+GO
+
+IF OBJECT_ID('dbo.Factura', 'U') IS NOT NULL
+    DROP TABLE dbo.Factura;
+GO
+
+IF OBJECT_ID('dbo.Rubro', 'U') IS NOT NULL
+    DROP TABLE dbo.Rubro;
+GO
+
+IF OBJECT_ID('dbo.Auditoria', 'U') IS NOT NULL
+    DROP TABLE dbo.Auditoria;
+GO
+
+PRINT '✓ Tablas eliminadas';
+GO
+
+-- =============================================
+-- TABLA CATÁLOGO: Rubro
+-- =============================================
+CREATE TABLE dbo.Rubro
 (
-    auditoria_id INT IDENTITY(1,1) PRIMARY KEY,
+    rubro_id INT IDENTITY(1,1) NOT NULL,
+    nombre VARCHAR(100) NOT NULL,
+    descripcion VARCHAR(300) NULL,
+    periodicidad VARCHAR(20) NULL,
+    vigencia BIT NOT NULL DEFAULT 1,
+    aplica_recargo BIT NOT NULL DEFAULT 0,
+    aplica_intereses BIT NOT NULL DEFAULT 0,
+    tasa_interes DECIMAL(5,2) NULL DEFAULT 0,
+    tasa_recargo DECIMAL(5,2) NULL DEFAULT 0,
+    fecha_creacion DATE NOT NULL DEFAULT CAST(GETDATE() AS DATE),
+    
+    CONSTRAINT PK_Rubro PRIMARY KEY (rubro_id),
+    CONSTRAINT UQ_Rubro_Nombre UNIQUE (nombre),
+    CONSTRAINT CK_Rubro_Periodicidad 
+        CHECK (periodicidad IN ('Mensual', 'Trimestral', 'Anual', 'Único') OR periodicidad IS NULL),
+    CONSTRAINT CK_Rubro_TasaInteres 
+        CHECK (tasa_interes >= 0 AND tasa_interes <= 100),
+    CONSTRAINT CK_Rubro_TasaRecargo 
+        CHECK (tasa_recargo >= 0 AND tasa_recargo <= 100)
+);
+GO
+
+CREATE INDEX IX_Rubro_Vigencia ON dbo.Rubro(vigencia);
+GO
+
+-- Insertar rubros comunes municipales
+INSERT INTO dbo.Rubro (nombre, descripcion, periodicidad, vigencia, aplica_recargo, aplica_intereses, tasa_interes, tasa_recargo) 
+VALUES
+('Impuesto Territorial', 'Impuesto sobre bienes inmuebles', 'Trimestral', 1, 1, 1, 2.5, 1.0),
+('Licencia Comercial', 'Licencia para ejercer actividad comercial', 'Anual', 1, 1, 0, 0, 1.5),
+('Patente Municipal', 'Patente para comercio o servicio', 'Anual', 1, 1, 1, 2.0, 1.0),
+('Servicio de Agua', 'Cobro por suministro de agua potable', 'Mensual', 1, 0, 0, 0, 0),
+('Servicio de Basura', 'Recolección y manejo de desechos', 'Mensual', 1, 0, 0, 0, 0),
+('Permiso de Construcción', 'Permiso para construcción o remodelación', 'Único', 1, 0, 0, 0, 0),
+('Permiso de Rótulo', 'Permiso para instalación de rótulos', 'Único', 1, 0, 0, 0, 0),
+('Certificación de Uso de Suelo', 'Certificado de uso de suelo', 'Único', 1, 0, 0, 0, 0),
+('Otros Servicios', 'Servicios varios municipales', NULL, 1, 0, 0, 0, 0);
+GO
+
+PRINT '✓ Tabla Rubro creada con datos iniciales';
+GO
+
+-- =============================================
+-- TABLA: Factura
+-- =============================================
+CREATE TABLE dbo.Factura
+(
+    factura_id INT IDENTITY(1,1) NOT NULL,
+    numero_factura VARCHAR(50) NOT NULL,
+    fecha_emision DATETIME NOT NULL DEFAULT GETDATE(),
+    fecha_vencimiento DATE NOT NULL,
+    periodo DATE NULL,
+    monto_base DECIMAL(12,2) NOT NULL DEFAULT 0,
+    recargo DECIMAL(12,2) NOT NULL DEFAULT 0,
+    intereses DECIMAL(12,2) NOT NULL DEFAULT 0,
+    monto_total DECIMAL(12,2) NOT NULL DEFAULT 0,
+    estado_factura VARCHAR(20) NOT NULL DEFAULT 'Pendiente',
+    tramite_id INT NULL,
+    inmueble_id INT NULL,
+    
+    CONSTRAINT PK_Factura PRIMARY KEY (factura_id),
+    CONSTRAINT UQ_Factura_NumeroFactura UNIQUE (numero_factura),
+    CONSTRAINT FK_Factura_Tramite 
+        FOREIGN KEY (tramite_id) REFERENCES dbo.Tramite(tramite_id),
+    CONSTRAINT FK_Factura_Inmueble 
+        FOREIGN KEY (inmueble_id) REFERENCES dbo.Inmueble(inmueble_id),
+    CONSTRAINT CK_Factura_EstadoFactura 
+        CHECK (estado_factura IN ('Pendiente', 'Pagada', 'Vencida', 'Cancelada')),
+    CONSTRAINT CK_Factura_FechaVencimiento 
+        CHECK (fecha_vencimiento >= CAST(fecha_emision AS DATE)),
+    CONSTRAINT CK_Factura_MontoBase 
+        CHECK (monto_base >= 0),
+    CONSTRAINT CK_Factura_Recargo 
+        CHECK (recargo >= 0),
+    CONSTRAINT CK_Factura_Intereses 
+        CHECK (intereses >= 0),
+    CONSTRAINT CK_Factura_MontoTotal 
+        CHECK (monto_total >= 0),
+    CONSTRAINT CK_Factura_ReferenciaRequerida 
+        CHECK (tramite_id IS NOT NULL OR inmueble_id IS NOT NULL)
+);
+GO
+
+CREATE INDEX IX_Factura_EstadoFactura ON dbo.Factura(estado_factura);
+CREATE INDEX IX_Factura_FechaEmision ON dbo.Factura(fecha_emision);
+CREATE INDEX IX_Factura_TramiteId ON dbo.Factura(tramite_id);
+CREATE INDEX IX_Factura_InmuebleId ON dbo.Factura(inmueble_id);
+GO
+
+PRINT '✓ Tabla Factura creada';
+GO
+
+-- =============================================
+-- TABLA: Detalle_factura
+-- =============================================
+CREATE TABLE dbo.Detalle_factura
+(
+    detalle_factura_id INT IDENTITY(1,1) NOT NULL,
+    nombre VARCHAR(100) NOT NULL,
+    referencia_servicio VARCHAR(100) NULL,
+    cantidad INT NOT NULL DEFAULT 1,
+    monto_unitario DECIMAL(12,2) NOT NULL,
+    descuento_linea DECIMAL(12,2) NOT NULL DEFAULT 0,
+    fecha_servicio DATE NULL,
     factura_id INT NOT NULL,
-    numero_factura VARCHAR(50),
+    rubro_id INT NOT NULL,
     
-    -- Acción realizada
-    accion VARCHAR(10) NOT NULL,  -- 'INSERT', 'UPDATE', 'DELETE'
-    
-    -- Datos ANTES del cambio (solo para UPDATE y DELETE)
-    monto_base_anterior DECIMAL(12,2),
-    recargo_anterior DECIMAL(12,2),
-    intereses_anterior DECIMAL(12,2),
-    monto_total_anterior DECIMAL(12,2),
-    estado_factura_anterior VARCHAR(20),
-    fecha_vencimiento_anterior DATE,
-    
-    -- Datos DESPUÉS del cambio (solo para INSERT y UPDATE)
-    monto_base_nuevo DECIMAL(12,2),
-    recargo_nuevo DECIMAL(12,2),
-    intereses_nuevo DECIMAL(12,2),
-    monto_total_nuevo DECIMAL(12,2),
-    estado_factura_nuevo VARCHAR(20),
-    fecha_vencimiento_nuevo DATE,
-    
-    -- Metadata
-    fecha_cambio DATETIME NOT NULL DEFAULT GETDATE(),
-    usuario_cambio VARCHAR(100) NOT NULL DEFAULT SUSER_NAME()
+    CONSTRAINT PK_DetalleFactura PRIMARY KEY (detalle_factura_id),
+    CONSTRAINT FK_DetalleFactura_Factura 
+        FOREIGN KEY (factura_id) REFERENCES dbo.Factura(factura_id)
+        ON DELETE CASCADE,
+    CONSTRAINT FK_DetalleFactura_Rubro 
+        FOREIGN KEY (rubro_id) REFERENCES dbo.Rubro(rubro_id),
+    CONSTRAINT CK_DetalleFactura_Cantidad 
+        CHECK (cantidad > 0),
+    CONSTRAINT CK_DetalleFactura_MontoUnitario 
+        CHECK (monto_unitario >= 0),
+    CONSTRAINT CK_DetalleFactura_DescuentoLinea 
+        CHECK (descuento_linea >= 0)
 );
 GO
 
-PRINT '  ✓ Tabla Factura_Auditoria creada';
-PRINT '';
-
--- =============================================
--- PASO 2: Crear tabla de auditoría para PAGO
--- =============================================
-PRINT '📋 Creando tabla Pago_Auditoria...';
-
-IF OBJECT_ID('dbo.Pago_Auditoria', 'U') IS NOT NULL
-    DROP TABLE dbo.Pago_Auditoria;
+CREATE INDEX IX_DetalleFactura_FacturaId ON dbo.Detalle_factura(factura_id);
+CREATE INDEX IX_DetalleFactura_RubroId ON dbo.Detalle_factura(rubro_id);
 GO
 
-CREATE TABLE dbo.Pago_Auditoria
+PRINT '✓ Tabla Detalle_factura creada';
+GO
+
+-- =============================================
+-- TABLA: Pago
+-- =============================================
+CREATE TABLE dbo.Pago
 (
-    auditoria_id INT IDENTITY(1,1) PRIMARY KEY,
-    pago_id INT NOT NULL,
-    numero_recibo VARCHAR(50),
+    pago_id INT IDENTITY(1,1) NOT NULL,
+    monto_pagado DECIMAL(12,2) NOT NULL,
+    fecha_pago DATE NOT NULL DEFAULT CAST(GETDATE() AS DATE),
+    medio_pago VARCHAR(20) NOT NULL DEFAULT 'Efectivo',
+    numero_recibo VARCHAR(50) NOT NULL,
+    usuario_id INT NOT NULL,
+    factura_id INT NOT NULL,
     
-    -- Acción realizada
-    accion VARCHAR(10) NOT NULL,  -- 'INSERT', 'UPDATE', 'DELETE'
-    
-    -- Datos ANTES del cambio (solo para UPDATE y DELETE)
-    factura_id_anterior INT,
-    monto_pagado_anterior DECIMAL(12,2),
-    fecha_pago_anterior DATE,
-    medio_pago_anterior VARCHAR(20),
-    usuario_id_anterior INT,
-    
-    -- Datos DESPUÉS del cambio (solo para INSERT y UPDATE)
-    factura_id_nuevo INT,
-    monto_pagado_nuevo DECIMAL(12,2),
-    fecha_pago_nuevo DATE,
-    medio_pago_nuevo VARCHAR(20),
-    usuario_id_nuevo INT,
-    
-    -- Metadata
-    fecha_cambio DATETIME NOT NULL DEFAULT GETDATE(),
-    usuario_cambio VARCHAR(100) NOT NULL DEFAULT SUSER_NAME()
+    CONSTRAINT PK_Pago PRIMARY KEY (pago_id),
+    CONSTRAINT UQ_Pago_NumeroRecibo UNIQUE (numero_recibo),
+    CONSTRAINT FK_Pago_Factura 
+        FOREIGN KEY (factura_id) REFERENCES dbo.Factura(factura_id),
+    CONSTRAINT FK_Pago_Usuario 
+        FOREIGN KEY (usuario_id) REFERENCES dbo.Usuario(usuario_id),
+    CONSTRAINT CK_Pago_MontoPagado 
+        CHECK (monto_pagado > 0),
+    CONSTRAINT CK_Pago_MedioPago 
+        CHECK (medio_pago IN ('Efectivo'))
 );
 GO
 
-PRINT '  ✓ Tabla Pago_Auditoria creada';
-PRINT '';
-
--- =============================================
--- PASO 3: Trigger para INSERT en Factura
--- =============================================
-PRINT '🔧 Creando triggers para Factura...';
-
-DROP TRIGGER IF EXISTS dbo.trg_Factura_Auditoria_Insert;
+CREATE INDEX IX_Pago_FacturaId ON dbo.Pago(factura_id);
+CREATE INDEX IX_Pago_FechaPago ON dbo.Pago(fecha_pago);
 GO
 
-CREATE TRIGGER dbo.trg_Factura_Auditoria_Insert
-ON dbo.Factura
-AFTER INSERT
-AS
-BEGIN
-    SET NOCOUNT ON;
-    
-    INSERT INTO dbo.Factura_Auditoria (
-        factura_id,
-        numero_factura,
-        accion,
-        monto_base_nuevo,
-        recargo_nuevo,
-        intereses_nuevo,
-        monto_total_nuevo,
-        estado_factura_nuevo,
-        fecha_vencimiento_nuevo,
-        fecha_cambio,
-        usuario_cambio
-    )
-    SELECT 
-        i.factura_id,
-        i.numero_factura,
-        'INSERT',
-        i.monto_base,
-        i.recargo,
-        i.intereses,
-        i.monto_total,
-        i.estado_factura,
-        i.fecha_vencimiento,
-        GETDATE(),
-        SUSER_NAME()
-    FROM inserted i;
-END
+PRINT '✓ Tabla Pago creada';
 GO
 
-PRINT '  ✓ trg_Factura_Auditoria_Insert creado';
 
--- =============================================
--- PASO 4: Trigger para UPDATE en Factura
--- =============================================
-DROP TRIGGER IF EXISTS dbo.trg_Factura_Auditoria_Update;
-GO
 
-CREATE TRIGGER dbo.trg_Factura_Auditoria_Update
-ON dbo.Factura
-AFTER UPDATE
-AS
-BEGIN
-    SET NOCOUNT ON;
-    
-    INSERT INTO dbo.Factura_Auditoria (
-        factura_id,
-        numero_factura,
-        accion,
-        -- Datos anteriores (deleted)
-        monto_base_anterior,
-        recargo_anterior,
-        intereses_anterior,
-        monto_total_anterior,
-        estado_factura_anterior,
-        fecha_vencimiento_anterior,
-        -- Datos nuevos (inserted)
-        monto_base_nuevo,
-        recargo_nuevo,
-        intereses_nuevo,
-        monto_total_nuevo,
-        estado_factura_nuevo,
-        fecha_vencimiento_nuevo,
-        fecha_cambio,
-        usuario_cambio
-    )
-    SELECT 
-        i.factura_id,
-        i.numero_factura,
-        'UPDATE',
-        -- Anteriores
-        d.monto_base,
-        d.recargo,
-        d.intereses,
-        d.monto_total,
-        d.estado_factura,
-        d.fecha_vencimiento,
-        -- Nuevos
-        i.monto_base,
-        i.recargo,
-        i.intereses,
-        i.monto_total,
-        i.estado_factura,
-        i.fecha_vencimiento,
-        GETDATE(),
-        SUSER_NAME()
-    FROM inserted i
-    INNER JOIN deleted d ON i.factura_id = d.factura_id;
-END
-GO
 
-PRINT '  ✓ trg_Factura_Auditoria_Update creado';
-
--- =============================================
--- PASO 5: Trigger para DELETE en Factura
--- =============================================
-DROP TRIGGER IF EXISTS dbo.trg_Factura_Auditoria_Delete;
-GO
-
-CREATE TRIGGER dbo.trg_Factura_Auditoria_Delete
-ON dbo.Factura
-AFTER DELETE
-AS
-BEGIN
-    SET NOCOUNT ON;
-    
-    INSERT INTO dbo.Factura_Auditoria (
-        factura_id,
-        numero_factura,
-        accion,
-        monto_base_anterior,
-        recargo_anterior,
-        intereses_anterior,
-        monto_total_anterior,
-        estado_factura_anterior,
-        fecha_vencimiento_anterior,
-        fecha_cambio,
-        usuario_cambio
-    )
-    SELECT 
-        d.factura_id,
-        d.numero_factura,
-        'DELETE',
-        d.monto_base,
-        d.recargo,
-        d.intereses,
-        d.monto_total,
-        d.estado_factura,
-        d.fecha_vencimiento,
-        GETDATE(),
-        SUSER_NAME()
-    FROM deleted d;
-END
-GO
-
-PRINT '  ✓ trg_Factura_Auditoria_Delete creado';
-PRINT '';
-
--- =============================================
--- PASO 6: Trigger para INSERT en Pago
--- =============================================
-PRINT '🔧 Creando triggers para Pago...';
-
-DROP TRIGGER IF EXISTS dbo.trg_Pago_Auditoria_Insert;
-GO
-
-CREATE TRIGGER dbo.trg_Pago_Auditoria_Insert
-ON dbo.Pago
-AFTER INSERT
-AS
-BEGIN
-    SET NOCOUNT ON;
-    
-    INSERT INTO dbo.Pago_Auditoria (
-        pago_id,
-        numero_recibo,
-        accion,
-        factura_id_nuevo,
-        monto_pagado_nuevo,
-        fecha_pago_nuevo,
-        medio_pago_nuevo,
-        usuario_id_nuevo,
-        fecha_cambio,
-        usuario_cambio
-    )
-    SELECT 
-        i.pago_id,
-        i.numero_recibo,
-        'INSERT',
-        i.factura_id,
-        i.monto_pagado,
-        i.fecha_pago,
-        i.medio_pago,
-        i.usuario_id,
-        GETDATE(),
-        SUSER_NAME()
-    FROM inserted i;
-END
-GO
-
-PRINT '  ✓ trg_Pago_Auditoria_Insert creado';
-
--- =============================================
--- PASO 7: Trigger para UPDATE en Pago
--- =============================================
-DROP TRIGGER IF EXISTS dbo.trg_Pago_Auditoria_Update;
-GO
-
-CREATE TRIGGER dbo.trg_Pago_Auditoria_Update
-ON dbo.Pago
-AFTER UPDATE
-AS
-BEGIN
-    SET NOCOUNT ON;
-    
-    INSERT INTO dbo.Pago_Auditoria (
-        pago_id,
-        numero_recibo,
-        accion,
-        -- Datos anteriores
-        factura_id_anterior,
-        monto_pagado_anterior,
-        fecha_pago_anterior,
-        medio_pago_anterior,
-        usuario_id_anterior,
-        -- Datos nuevos
-        factura_id_nuevo,
-        monto_pagado_nuevo,
-        fecha_pago_nuevo,
-        medio_pago_nuevo,
-        usuario_id_nuevo,
-        fecha_cambio,
-        usuario_cambio
-    )
-    SELECT 
-        i.pago_id,
-        i.numero_recibo,
-        'UPDATE',
-        -- Anteriores
-        d.factura_id,
-        d.monto_pagado,
-        d.fecha_pago,
-        d.medio_pago,
-        d.usuario_id,
-        -- Nuevos
-        i.factura_id,
-        i.monto_pagado,
-        i.fecha_pago,
-        i.medio_pago,
-        i.usuario_id,
-        GETDATE(),
-        SUSER_NAME()
-    FROM inserted i
-    INNER JOIN deleted d ON i.pago_id = d.pago_id;
-END
-GO
-
-PRINT '  ✓ trg_Pago_Auditoria_Update creado';
-
--- =============================================
--- PASO 8: Trigger para DELETE en Pago
--- =============================================
-DROP TRIGGER IF EXISTS dbo.trg_Pago_Auditoria_Delete;
-GO
-
-CREATE TRIGGER dbo.trg_Pago_Auditoria_Delete
-ON dbo.Pago
-AFTER DELETE
-AS
-BEGIN
-    SET NOCOUNT ON;
-    
-    INSERT INTO dbo.Pago_Auditoria (
-        pago_id,
-        numero_recibo,
-        accion,
-        factura_id_anterior,
-        monto_pagado_anterior,
-        fecha_pago_anterior,
-        medio_pago_anterior,
-        usuario_id_anterior,
-        fecha_cambio,
-        usuario_cambio
-    )
-    SELECT 
-        d.pago_id,
-        d.numero_recibo,
-        'DELETE',
-        d.factura_id,
-        d.monto_pagado,
-        d.fecha_pago,
-        d.medio_pago,
-        d.usuario_id,
-        GETDATE(),
-        SUSER_NAME()
-    FROM deleted d;
-END
-GO
-
-PRINT '  ✓ trg_Pago_Auditoria_Delete creado';
-PRINT '';
-
--- =============================================
--- PASO 9: Crear SPs para consultar auditoría
--- =============================================
-PRINT '📊 Creando Stored Procedures de consulta...';
-GO
-
--- SP: Ver historial de una factura
-CREATE OR ALTER PROCEDURE sp_Factura_ConsultarHistorial
-    @factura_id INT
-AS
-BEGIN
-    SET NOCOUNT ON;
-    
-    SELECT 
-        auditoria_id,
-        factura_id,
-        numero_factura,
-        accion,
-        monto_total_anterior,
-        monto_total_nuevo,
-        estado_factura_anterior,
-        estado_factura_nuevo,
-        fecha_cambio,
-        usuario_cambio
-    FROM Factura_Auditoria
-    WHERE factura_id = @factura_id
-    ORDER BY fecha_cambio DESC;
-END
-GO
-
-PRINT '  ✓ sp_Factura_ConsultarHistorial creado';
-GO
-
--- SP: Ver historial de un pago
-CREATE OR ALTER PROCEDURE sp_Pago_ConsultarHistorial
-    @pago_id INT
-AS
-BEGIN
-    SET NOCOUNT ON;
-    
-    SELECT 
-        auditoria_id,
-        pago_id,
-        numero_recibo,
-        accion,
-        monto_pagado_anterior,
-        monto_pagado_nuevo,
-        medio_pago_anterior,
-        medio_pago_nuevo,
-        fecha_cambio,
-        usuario_cambio
-    FROM Pago_Auditoria
-    WHERE pago_id = @pago_id
-    ORDER BY fecha_cambio DESC;
-END
-GO
-
-PRINT '  ✓ sp_Pago_ConsultarHistorial creado';
-GO
-
--- SP: Ver auditoría por fecha
-CREATE OR ALTER PROCEDURE sp_Auditoria_ConsultarPorFecha
-    @fecha_inicio DATETIME,
-    @fecha_fin DATETIME
-AS
-BEGIN
-    SET NOCOUNT ON;
-    
-    SELECT 
-        'FACTURA' AS tipo,
-        auditoria_id,
-        factura_id AS registro_id,
-        numero_factura AS numero_documento,
-        accion,
-        fecha_cambio,
-        usuario_cambio
-    FROM Factura_Auditoria
-    WHERE fecha_cambio BETWEEN @fecha_inicio AND @fecha_fin
-    
-    UNION ALL
-    
-    SELECT 
-        'PAGO' AS tipo,
-        auditoria_id,
-        pago_id AS registro_id,
-        numero_recibo AS numero_documento,
-        accion,
-        fecha_cambio,
-        usuario_cambio
-    FROM Pago_Auditoria
-    WHERE fecha_cambio BETWEEN @fecha_inicio AND @fecha_fin
-    
-    ORDER BY fecha_cambio DESC;
-END
-GO
-
-PRINT '  ✓ sp_Auditoria_ConsultarPorFecha creado';
-PRINT '';
-
--- =============================================
--- VERIFICACIÓN
--- =============================================
-PRINT '========================================';
-PRINT '✅ AUDITORÍA IMPLEMENTADA EXITOSAMENTE';
-PRINT '========================================';
-PRINT '';
-PRINT '📊 Resumen:';
-PRINT '  • Tablas de auditoría: 2';
-PRINT '  • Triggers creados: 6';
-PRINT '  • Stored Procedures: 3';
-PRINT '';
-PRINT '🔍 Ejemplos de uso:';
-PRINT '';
-PRINT '-- Ver historial de factura 1:';
-PRINT 'EXEC sp_Factura_ConsultarHistorial @factura_id = 1;';
-PRINT '';
-PRINT '-- Ver historial de pago 1:';
-PRINT 'EXEC sp_Pago_ConsultarHistorial @pago_id = 1;';
-PRINT '';
-PRINT '-- Ver cambios de hoy:';
-PRINT 'DECLARE @hoy_inicio DATETIME = CAST(CAST(GETDATE() AS DATE) AS DATETIME);';
-PRINT 'DECLARE @hoy_fin DATETIME = DATEADD(SECOND, -1, DATEADD(DAY, 1, @hoy_inicio));';
-PRINT 'EXEC sp_Auditoria_ConsultarPorFecha @fecha_inicio = @hoy_inicio, @fecha_fin = @hoy_fin;';
-PRINT '';
-PRINT '-- Consulta directa:';
-PRINT 'SELECT * FROM Factura_Auditoria WHERE factura_id = 1;';
-PRINT 'SELECT * FROM Pago_Auditoria WHERE pago_id = 1;';
-PRINT '';
-PRINT '========================================';
-GO
