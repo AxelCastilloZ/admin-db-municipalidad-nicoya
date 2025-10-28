@@ -10,6 +10,7 @@
 -- Descripción: Tablas para gestión de facturas, pagos y rubros
 -- =============================================
 
+
 USE MunicipalidadNicoya;
 GO
 
@@ -17,18 +18,28 @@ GO
 -- ELIMINAR RESTRICCIONES FK ANTES DE DROP
 -- =============================================
 
+-- ✅ AGREGADO: FK desde Servicio_Inmueble (CRÍTICA)
+IF EXISTS (SELECT * FROM sys.foreign_keys WHERE name = 'FK_ServicioInmueble_Rubro')
+    ALTER TABLE dbo.Servicio_Inmueble DROP CONSTRAINT FK_ServicioInmueble_Rubro;
+
+IF EXISTS (SELECT * FROM sys.foreign_keys WHERE name = 'FK_ServicioInmueble_Inmueble')
+    ALTER TABLE dbo.Servicio_Inmueble DROP CONSTRAINT FK_ServicioInmueble_Inmueble;
+
+-- FK desde Pago
 IF EXISTS (SELECT * FROM sys.foreign_keys WHERE name = 'FK_Pago_Factura')
     ALTER TABLE dbo.Pago DROP CONSTRAINT FK_Pago_Factura;
 
 IF EXISTS (SELECT * FROM sys.foreign_keys WHERE name = 'FK_Pago_Usuario')
     ALTER TABLE dbo.Pago DROP CONSTRAINT FK_Pago_Usuario;
 
+-- FK desde Detalle_factura
 IF EXISTS (SELECT * FROM sys.foreign_keys WHERE name = 'FK_DetalleFactura_Factura')
     ALTER TABLE dbo.Detalle_factura DROP CONSTRAINT FK_DetalleFactura_Factura;
 
 IF EXISTS (SELECT * FROM sys.foreign_keys WHERE name = 'FK_DetalleFactura_Rubro')
     ALTER TABLE dbo.Detalle_factura DROP CONSTRAINT FK_DetalleFactura_Rubro;
 
+-- FK desde Factura
 IF EXISTS (SELECT * FROM sys.foreign_keys WHERE name = 'FK_Factura_Tramite')
     ALTER TABLE dbo.Factura DROP CONSTRAINT FK_Factura_Tramite;
 
@@ -63,8 +74,6 @@ IF EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_DetalleFactura_RubroId')
 IF EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_Rubro_Vigencia')
     DROP INDEX IX_Rubro_Vigencia ON dbo.Rubro;
 
-
-
 PRINT '✓ Restricciones e índices eliminados';
 GO
 
@@ -88,6 +97,8 @@ IF OBJECT_ID('dbo.Rubro', 'U') IS NOT NULL
     DROP TABLE dbo.Rubro;
 GO
 
+PRINT '✓ Tablas eliminadas';
+GO
 
 PRINT '✓ Tablas eliminadas';
 GO
