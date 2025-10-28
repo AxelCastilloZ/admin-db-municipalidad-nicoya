@@ -231,7 +231,10 @@ SELECT
     FORMAT(a.monto_pagado, 'C', 'es-CR') AS Anio_Anterior,
     FORMAT(b.monto_pagado, 'C', 'es-CR') AS Anio_Actual,
     FORMAT(b.monto_pagado - a.monto_pagado, 'C', 'es-CR') AS Diferencia,
-    CAST((b.monto_pagado - a.monto_pagado) * 100.0 / NULLIF(a.monto_pagado, 0) AS DECIMAL(5,2)) AS Porcentaje_Variacion
+    CASE 
+        WHEN ISNULL(a.monto_pagado, 0) = 0 THEN 0
+        ELSE CAST((b.monto_pagado - a.monto_pagado) * 100.0 / a.monto_pagado AS DECIMAL(18,2))
+    END AS Porcentaje_Variacion
 FROM RecaudacionAnual a
 LEFT JOIN RecaudacionAnual b ON a.mes = b.mes AND b.anio = YEAR(GETDATE())
 WHERE a.anio = YEAR(GETDATE()) - 1
