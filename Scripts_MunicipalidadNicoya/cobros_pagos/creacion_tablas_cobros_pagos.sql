@@ -63,12 +63,7 @@ IF EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_DetalleFactura_RubroId')
 IF EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_Rubro_Vigencia')
     DROP INDEX IX_Rubro_Vigencia ON dbo.Rubro;
 
-IF EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_Auditoria_TablaAfectada')
-    DROP INDEX IX_Auditoria_TablaAfectada ON dbo.Auditoria;
 
-IF EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_Auditoria_FechaHora')
-    DROP INDEX IX_Auditoria_FechaHora ON dbo.Auditoria;
-GO
 
 PRINT '✓ Restricciones e índices eliminados';
 GO
@@ -93,9 +88,6 @@ IF OBJECT_ID('dbo.Rubro', 'U') IS NOT NULL
     DROP TABLE dbo.Rubro;
 GO
 
-IF OBJECT_ID('dbo.Auditoria', 'U') IS NOT NULL
-    DROP TABLE dbo.Auditoria;
-GO
 
 PRINT '✓ Tablas eliminadas';
 GO
