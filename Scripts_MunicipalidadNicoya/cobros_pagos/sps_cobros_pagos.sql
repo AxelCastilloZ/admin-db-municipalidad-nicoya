@@ -2613,27 +2613,27 @@ BEGIN
         -- Usar CTE para optimizar la consulta con paginación
         ;WITH PagosCTE AS (
             SELECT 
-                p.pago_id,
+                CAST(p.pago_id AS INT) AS pago_id,
                 p.numero_recibo,
-                p.monto_pagado,
+                CAST(p.monto_pagado AS DECIMAL(12,2)) AS monto_pagado,
                 p.fecha_pago,
                 p.medio_pago,
-                p.usuario_id,
+                CAST(p.usuario_id AS INT) AS usuario_id,
                 u.nombre AS usuario_nombre,
-                f.factura_id,
+                CAST(f.factura_id AS INT) AS factura_id,
                 f.numero_factura,
-                f.monto_total AS factura_monto_total,
+                CAST(f.monto_total AS DECIMAL(12,2)) AS factura_monto_total,
                 f.tramite_id,
                 f.inmueble_id,
                 
                 -- Obtener el contribuyente principal (mayor porcentaje si es inmueble)
-                COALESCE(
+                CAST(COALESCE(
                     t.contribuyente_id, 
                     (SELECT TOP 1 ci2.contribuyente_id 
                      FROM dbo.Contribuyente_Inmueble ci2 
                      WHERE ci2.inmueble_id = f.inmueble_id 
                      ORDER BY ci2.porcentaje_propiedad DESC)
-                ) AS contribuyente_id,
+                ) AS INT) AS contribuyente_id,
                 
                 -- Tipo de origen
                 CASE 
@@ -2671,20 +2671,20 @@ BEGIN
         
         -- Consulta final con información del contribuyente y paginación
         SELECT DISTINCT
-            pc.pago_id,
+            CAST(pc.pago_id AS INT) AS pago_id,
             pc.numero_recibo,
-            pc.monto_pagado,
+            CAST(pc.monto_pagado AS DECIMAL(12,2)) AS monto_pagado,
             pc.fecha_pago,
             pc.medio_pago,
-            pc.usuario_id,
+            CAST(pc.usuario_id AS INT) AS usuario_id,
             pc.usuario_nombre,
-            pc.factura_id,
+            CAST(pc.factura_id AS INT) AS factura_id,
             pc.numero_factura,
-            pc.factura_monto_total,
+            CAST(pc.factura_monto_total AS DECIMAL(12,2)) AS factura_monto_total,
             pc.tipo_origen,
             
             -- Información del contribuyente principal
-            pc.contribuyente_id,
+            CAST(pc.contribuyente_id AS INT) AS contribuyente_id,
             c.tipo_contribuyente,
             CASE 
                 WHEN c.tipo_contribuyente = 'Física' THEN 
@@ -2698,10 +2698,10 @@ BEGIN
             END AS contribuyente_cedula,
             
             -- Metadatos de paginación
-            pc.total_registros,
+            CAST(pc.total_registros AS INT) AS total_registros,
             @page_number AS pagina_actual,
             @page_size AS registros_por_pagina,
-            CEILING(CAST(pc.total_registros AS FLOAT) / @page_size) AS total_paginas
+            CAST(CEILING(CAST(pc.total_registros AS FLOAT) / @page_size) AS INT) AS total_paginas
             
         FROM PagosCTE pc
         LEFT JOIN dbo.Contribuyente c ON pc.contribuyente_id = c.contribuyente_id
@@ -2719,7 +2719,7 @@ BEGIN
 END
 GO
 
-PRINT '✓ SP sp_visualizar_historial_pagos creado exitosamente';
+PRINT '✓ SP sp_visualizar_historial_pagos creado exitosamente con correcciones de tipos';
 GO
 
 
