@@ -109,6 +109,7 @@ CREATE TABLE dbo.Rubro
     nombre VARCHAR(100) NOT NULL,
     descripcion VARCHAR(300) NULL,
     periodicidad VARCHAR(20) NULL,
+    tarifa_base DECIMAL(12,2) NOT NULL DEFAULT 0, 
     vigencia BIT NOT NULL DEFAULT 1,
     aplica_recargo BIT NOT NULL DEFAULT 0,
     aplica_intereses BIT NOT NULL DEFAULT 0,
@@ -120,6 +121,8 @@ CREATE TABLE dbo.Rubro
     CONSTRAINT UQ_Rubro_Nombre UNIQUE (nombre),
     CONSTRAINT CK_Rubro_Periodicidad 
         CHECK (periodicidad IN ('Mensual', 'Trimestral', 'Anual', 'Único') OR periodicidad IS NULL),
+    CONSTRAINT CK_Rubro_TarifaBase 
+        CHECK (tarifa_base >= 0), 
     CONSTRAINT CK_Rubro_TasaInteres 
         CHECK (tasa_interes >= 0 AND tasa_interes <= 100),
     CONSTRAINT CK_Rubro_TasaRecargo 
@@ -131,20 +134,20 @@ CREATE INDEX IX_Rubro_Vigencia ON dbo.Rubro(vigencia);
 GO
 
 -- Insertar rubros comunes municipales
-INSERT INTO dbo.Rubro (nombre, descripcion, periodicidad, vigencia, aplica_recargo, aplica_intereses, tasa_interes, tasa_recargo) 
+INSERT INTO dbo.Rubro (nombre, descripcion, periodicidad, tarifa_base, vigencia, aplica_recargo, aplica_intereses, tasa_interes, tasa_recargo) 
 VALUES
-('Impuesto Territorial', 'Impuesto sobre bienes inmuebles', 'Trimestral', 1, 1, 1, 2.5, 1.0),
-('Licencia Comercial', 'Licencia para ejercer actividad comercial', 'Anual', 1, 1, 0, 0, 1.5),
-('Patente Municipal', 'Patente para comercio o servicio', 'Anual', 1, 1, 1, 2.0, 1.0),
-('Servicio de Agua', 'Cobro por suministro de agua potable', 'Mensual', 1, 0, 0, 0, 0),
-('Servicio de Basura', 'Recolección y manejo de desechos', 'Mensual', 1, 0, 0, 0, 0),
-('Permiso de Construcción', 'Permiso para construcción o remodelación', 'Único', 1, 0, 0, 0, 0),
-('Permiso de Rótulo', 'Permiso para instalación de rótulos', 'Único', 1, 0, 0, 0, 0),
-('Certificación de Uso de Suelo', 'Certificado de uso de suelo', 'Único', 1, 0, 0, 0, 0),
-('Otros Servicios', 'Servicios varios municipales', NULL, 1, 0, 0, 0, 0);
+('Impuesto Territorial', 'Impuesto sobre bienes inmuebles', 'Trimestral', 15000, 1, 1, 1, 2.5, 1.0),
+('Licencia Comercial', 'Licencia para ejercer actividad comercial', 'Anual', 25000, 1, 1, 0, 0, 1.5),
+('Patente Municipal', 'Patente para comercio o servicio', 'Anual', 20000, 1, 1, 1, 2.0, 1.0),
+('Servicio de Agua', 'Cobro por suministro de agua potable', 'Mensual', 12000, 1, 0, 0, 0, 0),
+('Servicio de Basura', 'Recolección y manejo de desechos', 'Mensual', 8500, 1, 0, 0, 0, 0),
+('Permiso de Construcción', 'Permiso para construcción o remodelación', 'Único', 50000, 1, 0, 0, 0, 0),
+('Permiso de Rótulo', 'Permiso para instalación de rótulos', 'Único', 15000, 1, 0, 0, 0, 0),
+('Certificación de Uso de Suelo', 'Certificado de uso de suelo', 'Único', 10000, 1, 0, 0, 0, 0),
+('Otros Servicios', 'Servicios varios municipales', NULL, 0, 1, 0, 0, 0, 0);
 GO
 
-PRINT '✓ Tabla Rubro creada con datos iniciales';
+PRINT '✓ Tabla Rubro creada con datos iniciales (incluye tarifa_base)';
 GO
 
 -- =============================================
