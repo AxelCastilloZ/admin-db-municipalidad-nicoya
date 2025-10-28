@@ -1,7 +1,7 @@
--- =============================================
--- ETL PARTE 1: POBLACI�N DE DIMENSIONES
+﻿-- =============================================
+-- ETL PARTE 1: POBLACIÓN DE DIMENSIONES
 -- Datamart: Reportes Administrativos
--- VERSI�N FINAL - Nombres de columnas correctos
+-- VERSIÓN FINAL - Distrito desde dirección del CONTRIBUYENTE
 -- =============================================
 
 USE MunicipalidadNicoya;
@@ -15,7 +15,7 @@ PRINT '';
 GO
 
 -- =============================================
--- DIMENSI�N: DIM_Tiempo
+-- DIMENSIÓN: DIM_Tiempo
 -- =============================================
 
 PRINT 'Poblando DIM_Tiempo...';
@@ -46,8 +46,8 @@ BEGIN
         DATEPART(WEEKDAY, @FechaActual),
         CASE DATEPART(WEEKDAY, @FechaActual)
             WHEN 1 THEN 'Domingo' WHEN 2 THEN 'Lunes' WHEN 3 THEN 'Martes'
-            WHEN 4 THEN 'Mi�rcoles' WHEN 5 THEN 'Jueves' WHEN 6 THEN 'Viernes'
-            WHEN 7 THEN 'S�bado'
+            WHEN 4 THEN 'Miércoles' WHEN 5 THEN 'Jueves' WHEN 6 THEN 'Viernes'
+            WHEN 7 THEN 'Sábado'
         END,
         DATEPART(WEEK, @FechaActual),
         CASE WHEN DATEPART(WEEKDAY, @FechaActual) IN (1, 7) THEN 1 ELSE 0 END
@@ -63,7 +63,7 @@ PRINT '';
 GO
 
 -- =============================================
--- DIMENSI�N: DIM_Estado_Factura
+-- DIMENSIÓN: DIM_Estado_Factura
 -- =============================================
 
 PRINT 'Poblando DIM_Estado_Factura...';
@@ -84,10 +84,11 @@ PRINT '';
 GO
 
 -- =============================================
--- DIMENSI�N: DIM_Contribuyente
+-- DIMENSIÓN: DIM_Contribuyente
+-- ✅ CAMBIO: Ahora incluye distrito extraído de la dirección
 -- =============================================
 
-PRINT 'Poblando DIM_Contribuyente...';
+PRINT 'Poblando DIM_Contribuyente con extracción de distrito...';
 GO
 
 INSERT INTO DM.DIM_Contribuyente (
@@ -98,13 +99,40 @@ SELECT
     c.contribuyente_id,
     COALESCE(cf.nombre, cj.nombre_empresa, 'Sin nombre'),
     CASE 
-        WHEN cf.contribuyente_id IS NOT NULL THEN 'F�sica'
-        WHEN cj.contribuyente_id IS NOT NULL THEN 'Jur�dica'
-        ELSE 'F�sica'
+        WHEN cf.contribuyente_id IS NOT NULL THEN 'Física'
+        WHEN cj.contribuyente_id IS NOT NULL THEN 'Jurídica'
+        ELSE 'Física'
     END,
     COALESCE(cf.cedula, cj.cedula_juridica, 'N/A'),
-    NULL,
-    'Nicoya',
+    
+    -- ✅ EXTRACCIÓN INTELIGENTE DE DISTRITO DESDE DIRECCIÓN
+    CASE
+        -- 1. Belén de Nosarita
+        WHEN c.direccion LIKE '%Belén%' OR c.direccion LIKE '%Belen%' OR c.direccion LIKE '%Nosarita%' 
+            THEN 'Belén de Nosarita'
+        -- 2. Nosara
+        WHEN c.direccion LIKE '%Nosara%' 
+            THEN 'Nosara'
+        -- 3. Sámara
+        WHEN c.direccion LIKE '%Sámara%' OR c.direccion LIKE '%Samara%' 
+            THEN 'Sámara'
+        -- 4. Quebrada Honda
+        WHEN c.direccion LIKE '%Quebrada Honda%' OR c.direccion LIKE '%Qda Honda%' 
+            THEN 'Quebrada Honda'
+        -- 5. San Antonio
+        WHEN c.direccion LIKE '%San Antonio%' OR c.direccion LIKE '%Sn Antonio%' 
+            THEN 'San Antonio'
+        -- 6. Mansión
+        WHEN c.direccion LIKE '%Mansión%' OR c.direccion LIKE '%Mansion%' 
+            THEN 'Mansión'
+        -- 7. Nicoya (centro)
+        WHEN c.direccion LIKE '%Nicoya%' OR c.direccion LIKE '%Centro%' OR c.direccion LIKE '%centro%' 
+            THEN 'Nicoya'
+        -- Por defecto: Nicoya
+        ELSE 'Nicoya'
+    END AS distrito,
+    
+    'Nicoya' AS canton,
     c.telefono,
     c.email
 FROM dbo.Contribuyente c
@@ -115,14 +143,22 @@ GO
 DECLARE @count_contrib INT;
 SELECT @count_contrib = COUNT(*) FROM DM.DIM_Contribuyente;
 PRINT 'DIM_Contribuyente: ' + CAST(@count_contrib AS VARCHAR) + ' contribuyentes cargados';
+
+-- Mostrar distribución por distrito
+PRINT '';
+PRINT 'Distribución de contribuyentes por distrito:';
+SELECT 
+    distrito,
+    COUNT(*) AS cantidad,
+    CAST(COUNT(*) * 100.0 / (SELECT COUNT(*) FROM DM.DIM_Contribuyente) AS DECIMAL(5,2)) AS porcentaje
+FROM DM.DIM_Contribuyente
+GROUP BY distrito
+ORDER BY COUNT(*) DESC;
 PRINT '';
 GO
 
 -- =============================================
--- DIMENSI�N: DIM_Inmueble
--- Columnas reales de tu tabla Inmueble:
--- inmueble_id, Direccion_exacta, Area_terreno, 
--- tipo_uso_inmueble_id, Estado_ocupacional, valor_fiscal
+-- DIMENSIÓN: DIM_Inmueble
 -- =============================================
 
 PRINT 'Poblando DIM_Inmueble...';
@@ -144,7 +180,7 @@ SELECT
     i.inmueble_id,
     'FINCA-' + CAST(i.inmueble_id AS VARCHAR(10)) AS numero_finca,
     i.Direccion_exacta,
-    'Nicoya' AS distrito,
+    'Nicoya' AS distrito,  -- Simplificado, ya que usamos distrito del contribuyente
     'Nicoya' AS canton,
     i.Area_terreno,
     NULL AS area_construccion,
@@ -162,7 +198,7 @@ PRINT '';
 GO
 
 -- =============================================
--- DIMENSI�N: DIM_Rubro
+-- DIMENSIÓN: DIM_Rubro
 -- =============================================
 
 PRINT 'Poblando DIM_Rubro...';
@@ -186,7 +222,7 @@ PRINT '';
 GO
 
 -- =============================================
--- DIMENSI�N: DIM_Tramite
+-- DIMENSIÓN: DIM_Tramite
 -- =============================================
 
 PRINT 'Poblando DIM_Tramite...';
@@ -242,6 +278,10 @@ PRINT '  DIM_Contribuyente: ' + CAST(@c AS VARCHAR);
 PRINT '  DIM_Inmueble: ' + CAST(@i AS VARCHAR);
 PRINT '  DIM_Rubro: ' + CAST(@r AS VARCHAR);
 PRINT '  DIM_Tramite: ' + CAST(@tr AS VARCHAR);
+PRINT '';
+PRINT '✅ CAMBIO IMPORTANTE:';
+PRINT '   El distrito ahora se extrae de la dirección del CONTRIBUYENTE';
+PRINT '   Esto permite reportes por distrito sin depender de inmuebles';
 PRINT '';
 PRINT 'Siguiente: Ejecutar script 03 (carga de hechos)';
 PRINT '========================================';

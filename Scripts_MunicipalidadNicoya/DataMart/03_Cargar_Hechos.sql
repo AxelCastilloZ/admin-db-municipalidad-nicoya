@@ -1,14 +1,10 @@
 ﻿-- =============================================
 -- ETL PARTE 2: POBLACIÓN DE TABLA DE HECHOS
 -- Datamart: Reportes Administrativos
--- Carga FACT_Factura con métricas calculadas
--- VERSIÓN CORREGIDA - Asignación correcta de rubro_id
+-- VERSIÓN FINAL - Distrito desde CONTRIBUYENTE
 -- =============================================
 
 USE MunicipalidadNicoya;
-GO
-
-TRUNCATE TABLE DM.FACT_Factura;
 GO
 
 PRINT '';
@@ -20,7 +16,7 @@ GO
 
 -- =============================================
 -- TABLA DE HECHOS: FACT_Factura
--- ✅ CORRECCIÓN: rubro_id asignado correctamente desde Detalle_factura
+-- ✅ Distrito se obtiene del contribuyente, no del inmueble
 -- =============================================
 
 PRINT 'Poblando FACT_Factura...';
@@ -52,7 +48,7 @@ SELECT
     dt_emision.tiempo_id,
     dt_venc.tiempo_id,
     
-    -- Contribuyente desde el trámite o inmueble
+    -- ✅ Contribuyente desde el trámite o inmueble
     COALESCE(
         (SELECT contribuyente_id 
          FROM dbo.Tramite t 
@@ -64,7 +60,7 @@ SELECT
     
     f.inmueble_id,
     
-    -- ✅ CORRECCIÓN: Rubro del detalle con mayor monto (considerando descuento)
+    -- ✅ Rubro del detalle con mayor monto
     (SELECT TOP 1 df.rubro_id 
      FROM dbo.Detalle_factura df 
      WHERE df.factura_id = f.factura_id 
@@ -140,7 +136,7 @@ PRINT '✅ Facturas con rubro asignado: ' + CAST(@count_con_rubro AS VARCHAR);
 IF @count_sin_rubro > 0
 BEGIN
     PRINT '⚠️ Advertencia: ' + CAST(@count_sin_rubro AS VARCHAR) + ' facturas sin rubro_id asignado';
-    PRINT '   (Facturas sin detalles o en proceso de creación)';
+    PRINT '   (Facturas sin detalles)';
     PRINT '';
 END
 ELSE
@@ -174,8 +170,8 @@ ORDER BY cantidad DESC;
 GO
 
 PRINT '';
-PRINT 'Recaudación por Rubro (Top 5):';
-SELECT TOP 5
+PRINT 'Recaudación por Rubro:';
+SELECT 
     r.nombre,
     COUNT(*) AS cantidad,
     FORMAT(SUM(f.monto_total), 'C', 'es-CR') AS total,
@@ -185,6 +181,22 @@ FROM DM.FACT_Factura f
 INNER JOIN DM.DIM_Rubro r ON f.rubro_id = r.rubro_id
 WHERE f.rubro_id IS NOT NULL
 GROUP BY r.nombre
+ORDER BY SUM(f.monto_total) DESC;
+GO
+
+PRINT '';
+PRINT 'Recaudación por Distrito (desde CONTRIBUYENTE):';
+SELECT 
+    c.distrito AS Distrito,
+    COUNT(DISTINCT f.contribuyente_id) AS Contribuyentes,
+    COUNT(f.fact_factura_id) AS 'Total Facturas',
+    FORMAT(SUM(f.monto_total), 'C', 'es-CR') AS 'Monto Total',
+    FORMAT(SUM(f.monto_pagado), 'C', 'es-CR') AS 'Recaudado',
+    FORMAT(SUM(f.saldo_pendiente), 'C', 'es-CR') AS 'Pendiente',
+    CAST(SUM(f.monto_pagado) * 100.0 / NULLIF(SUM(f.monto_total), 0) AS DECIMAL(5,2)) AS '% Recaudación'
+FROM DM.FACT_Factura f
+INNER JOIN DM.DIM_Contribuyente c ON f.contribuyente_id = c.contribuyente_id
+GROUP BY c.distrito
 ORDER BY SUM(f.monto_total) DESC;
 GO
 
@@ -200,32 +212,20 @@ WHERE esta_vencida = 1;
 GO
 
 PRINT '';
-PRINT 'Resumen por Rubro (todos):';
-SELECT 
-    CASE 
-        WHEN ff.rubro_id IS NULL THEN '⚠️ SIN RUBRO ASIGNADO'
-        ELSE r.nombre 
-    END AS rubro,
-    COUNT(*) AS cantidad_facturas,
-    FORMAT(SUM(ff.monto_total), 'C', 'es-CR') AS monto_total,
-    FORMAT(SUM(ff.monto_pagado), 'C', 'es-CR') AS monto_pagado,
-    FORMAT(SUM(ff.saldo_pendiente), 'C', 'es-CR') AS saldo_pendiente
-FROM DM.FACT_Factura ff
-LEFT JOIN DM.DIM_Rubro r ON ff.rubro_id = r.rubro_id
-GROUP BY ff.rubro_id, r.nombre
-ORDER BY SUM(ff.monto_total) DESC;
-GO
-
-PRINT '';
 PRINT '========================================';
 PRINT 'TABLA DE HECHOS CARGADA EXITOSAMENTE';
 PRINT '========================================';
 PRINT '';
-PRINT '✅ CORRECCIÓN APLICADA:';
-PRINT '   El rubro_id se asigna correctamente desde Detalle_factura';
-PRINT '   considerando el detalle con mayor monto';
+PRINT '✅ CAMBIO IMPORTANTE:';
+PRINT '   Los reportes por distrito ahora usan DIM_Contribuyente';
+PRINT '   No dependen de que las facturas tengan inmueble_id';
 PRINT '';
-PRINT 'Siguiente paso: Probar endpoint de Recaudación por Rubro';
-PRINT 'GET /api/Reporte/recaudacionPorRubro';
+PRINT 'Consulta para reportes por distrito:';
+PRINT 'SELECT c.distrito, COUNT(*), SUM(f.monto_total)';
+PRINT 'FROM DM.FACT_Factura f';
+PRINT 'INNER JOIN DM.DIM_Contribuyente c ON f.contribuyente_id = c.contribuyente_id';
+PRINT 'GROUP BY c.distrito';
 PRINT '';
+PRINT 'Siguiente: Probar endpoints de reportes';
+PRINT '========================================';
 GO
