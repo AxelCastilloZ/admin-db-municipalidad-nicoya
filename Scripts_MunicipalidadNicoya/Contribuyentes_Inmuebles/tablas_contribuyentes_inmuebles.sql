@@ -17,6 +17,7 @@ GO
 -- PASO 1: ELIMINAR TODAS LAS FK QUE REFERENCIAN ESTAS TABLAS
 -- =============================================
 
+
 -- FK desde módulo Trámites
 IF EXISTS (SELECT * FROM sys.foreign_keys WHERE name = 'FK_Tramite_Inmueble')
     ALTER TABLE dbo.Tramite DROP CONSTRAINT FK_Tramite_Inmueble;
@@ -93,6 +94,9 @@ GO
 -- =============================================
 -- ELIMINAR TABLAS ADICIONALES
 -- =============================================
+IF OBJECT_ID('dbo.Servicio_Inmueble', 'U') IS NOT NULL
+    DROP TABLE dbo.Servicio_Inmueble;
+Go
 
 IF OBJECT_ID('dbo.ObservacionInmueble', 'U') IS NOT NULL
     DROP TABLE dbo.ObservacionInmueble;
@@ -404,18 +408,6 @@ PRINT '🏗️ CREACIÓN DE TABLA: Servicio_Inmueble';
 PRINT '========================================';
 PRINT '';
 
--- =============================================
--- 1. ELIMINAR TABLA SI EXISTE (para recrear limpia)
--- =============================================
-
-IF OBJECT_ID('dbo.Servicio_Inmueble', 'U') IS NOT NULL
-BEGIN
-    PRINT '⚠️  La tabla Servicio_Inmueble ya existe';
-    PRINT '   Eliminando para recrear...';
-    DROP TABLE dbo.Servicio_Inmueble;
-    PRINT '   ✓ Tabla eliminada';
-    PRINT '';
-END
 
 -- =============================================
 -- 2. CREAR TABLA SERVICIO_INMUEBLE

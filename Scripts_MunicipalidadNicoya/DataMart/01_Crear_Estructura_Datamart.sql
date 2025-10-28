@@ -1,7 +1,7 @@
 ﻿-- =============================================
 -- DATAMART: REPORTES ADMINISTRATIVOS
 -- Municipalidad de Nicoya - Esquema Estrella
--- Versión Simplificada (estilo didáctico)
+-- Versión CORREGIDA - rubro_id permite NULL
 -- =============================================
 
 USE MunicipalidadNicoya;
@@ -165,6 +165,7 @@ GO
 
 -- =============================================
 -- TABLA DE HECHOS: FACT_Factura
+-- ✅ CORRECCIÓN: rubro_id ahora permite NULL
 -- =============================================
 
 CREATE TABLE DM.FACT_Factura (
@@ -174,7 +175,7 @@ CREATE TABLE DM.FACT_Factura (
     tiempo_vencimiento_id INT NOT NULL,
     contribuyente_id INT,
     inmueble_id INT,
-    rubro_id INT NOT NULL,
+    rubro_id INT NULL,  -- ✅ MODIFICADO: Ahora permite NULL
     tramite_id INT,
     estado_factura_id INT NOT NULL,
     
@@ -212,7 +213,7 @@ CREATE INDEX IX_FACT_Rubro ON DM.FACT_Factura(rubro_id);
 CREATE INDEX IX_FACT_Estado ON DM.FACT_Factura(estado_factura_id);
 GO
 
-PRINT '✓ FACT_Factura creada';
+PRINT '✓ FACT_Factura creada (rubro_id permite NULL)';
 GO
 
 PRINT '';
@@ -223,5 +224,9 @@ PRINT '';
 PRINT 'Tablas creadas:';
 PRINT '  • 6 Dimensiones';
 PRINT '  • 1 Tabla de Hechos';
+PRINT '';
+PRINT '✅ CORRECCIÓN APLICADA:';
+PRINT '   rubro_id ahora permite NULL en FACT_Factura';
+PRINT '   Esto soluciona el error al emitir facturas';
 PRINT '';
 GO

@@ -1,7 +1,7 @@
 ﻿-- =============================================
 -- CONSULTAS EJEMPLO - REPORTES ADMINISTRATIVOS
 -- Datamart: Esquema Estrella
--- Ejemplos de análisis y reportes usando el modelo dimensional
+-- VERSIÓN CORREGIDA - Maneja rubro_id NULL
 -- =============================================
 
 USE MunicipalidadNicoya;
@@ -73,6 +73,7 @@ GO
 
 -- =============================================
 -- REPORTE 2: RECAUDACIÓN POR TIPO DE RUBRO
+-- ✅ MODIFICADO: Excluye facturas sin rubro
 -- =============================================
 
 PRINT '💰 REPORTE 2: Recaudación por Tipo de Rubro';
@@ -91,8 +92,17 @@ SELECT
     CAST(SUM(f.monto_pagado) * 100.0 / NULLIF(SUM(f.monto_total), 0) AS DECIMAL(5,2)) AS '% Efectividad'
 FROM DM.FACT_Factura f
 INNER JOIN DM.DIM_Rubro r ON f.rubro_id = r.rubro_id
+WHERE f.rubro_id IS NOT NULL  -- ✅ Excluir facturas sin rubro
 GROUP BY r.nombre, r.periodicidad
 ORDER BY SUM(f.monto_total) DESC;
+GO
+
+-- Facturas sin rubro asignado
+SELECT 
+    COUNT(*) AS 'Facturas sin Rubro',
+    FORMAT(SUM(monto_total), 'C', 'es-CR') AS 'Monto Total'
+FROM DM.FACT_Factura
+WHERE rubro_id IS NULL;
 GO
 
 PRINT '';
@@ -131,7 +141,7 @@ GROUP BY c.nombre, c.tipo_contribuyente, c.cedula
 ORDER BY SUM(f.saldo_pendiente) DESC;
 GO
 
--- Morosidad por rubro
+-- Morosidad por rubro (✅ excluye NULL)
 SELECT 
     r.nombre AS 'Rubro',
     COUNT(f.fact_factura_id) AS 'Facturas Vencidas',
@@ -139,7 +149,7 @@ SELECT
     AVG(f.dias_mora) AS 'Días Mora Promedio'
 FROM DM.FACT_Factura f
 INNER JOIN DM.DIM_Rubro r ON f.rubro_id = r.rubro_id
-WHERE f.esta_vencida = 1
+WHERE f.esta_vencida = 1 AND f.rubro_id IS NOT NULL
 GROUP BY r.nombre
 ORDER BY SUM(f.saldo_pendiente) DESC;
 GO
@@ -350,6 +360,9 @@ PRINT '  5. Análisis de Trámites';
 PRINT '  6. Comparativo Año Actual vs Anterior';
 PRINT '  7. Indicadores Clave (KPIs)';
 PRINT '  8. Tendencia Mensual';
+PRINT '';
+PRINT '✅ CORRECCIÓN APLICADA:';
+PRINT '   Las consultas manejan correctamente rubro_id NULL';
 PRINT '';
 PRINT '💡 Puedes modificar estas consultas según necesites';
 PRINT '========================================';

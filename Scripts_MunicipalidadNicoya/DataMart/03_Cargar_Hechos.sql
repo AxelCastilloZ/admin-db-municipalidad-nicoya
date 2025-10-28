@@ -2,7 +2,7 @@
 -- ETL PARTE 2: POBLACIÓN DE TABLA DE HECHOS
 -- Datamart: Reportes Administrativos
 -- Carga FACT_Factura con métricas calculadas
--- VERSIÓN SIMPLIFICADA Y SEGURA
+-- VERSIÓN CORREGIDA - Manejo correcto de rubro_id NULL
 -- =============================================
 
 USE MunicipalidadNicoya;
@@ -17,6 +17,7 @@ GO
 
 -- =============================================
 -- TABLA DE HECHOS: FACT_Factura
+-- ? CORRECCIÓN: rubro_id puede ser NULL
 -- =============================================
 
 PRINT 'Poblando FACT_Factura...';
@@ -48,14 +49,19 @@ SELECT
     dt_emision.tiempo_id,
     dt_venc.tiempo_id,
     
-    -- Contribuyente desde el trámite
-    (SELECT contribuyente_id 
-     FROM dbo.Tramite t 
-     WHERE t.tramite_id = f.tramite_id) AS contribuyente_id,
+    -- Contribuyente desde el trámite o inmueble
+    COALESCE(
+        (SELECT contribuyente_id 
+         FROM dbo.Tramite t 
+         WHERE t.tramite_id = f.tramite_id),
+        (SELECT TOP 1 ci.contribuyente_id
+         FROM dbo.Contribuyente_Inmueble ci
+         WHERE ci.inmueble_id = f.inmueble_id)
+    ) AS contribuyente_id,
     
     f.inmueble_id,
     
-    -- Rubro principal (el de mayor monto)
+    -- ? Rubro principal (el de mayor monto) - PUEDE SER NULL
     (SELECT TOP 1 df.rubro_id 
      FROM dbo.Detalle_factura df 
      WHERE df.factura_id = f.factura_id 
@@ -118,6 +124,17 @@ DECLARE @count_hechos INT;
 SELECT @count_hechos = COUNT(*) FROM DM.FACT_Factura;
 PRINT 'Registros cargados: ' + CAST(@count_hechos AS VARCHAR);
 PRINT '';
+
+-- Verificar cuántas facturas tienen rubro_id NULL
+DECLARE @count_sin_rubro INT;
+SELECT @count_sin_rubro = COUNT(*) FROM DM.FACT_Factura WHERE rubro_id IS NULL;
+IF @count_sin_rubro > 0
+BEGIN
+    PRINT '?? Advertencia: ' + CAST(@count_sin_rubro AS VARCHAR) + ' facturas sin rubro_id asignado';
+    PRINT '   (Facturas sin detalles o en proceso de creación)';
+    PRINT '';
+END
+
 GO
 
 -- =============================================
@@ -151,6 +168,7 @@ SELECT TOP 5
     SUM(f.monto_pagado) AS pagado
 FROM DM.FACT_Factura f
 INNER JOIN DM.DIM_Rubro r ON f.rubro_id = r.rubro_id
+WHERE f.rubro_id IS NOT NULL  -- ? Excluir facturas sin rubro
 GROUP BY r.nombre
 ORDER BY SUM(f.monto_total) DESC;
 GO
@@ -170,5 +188,8 @@ PRINT '';
 PRINT '========================================';
 PRINT 'TABLA DE HECHOS CARGADA EXITOSAMENTE';
 PRINT '========================================';
+PRINT '';
+PRINT '? CORRECCIÓN APLICADA:';
+PRINT '   El sistema maneja correctamente facturas sin rubro_id';
 PRINT '';
 GO
