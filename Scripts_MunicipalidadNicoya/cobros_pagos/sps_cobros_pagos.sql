@@ -1414,7 +1414,7 @@ GO
 
 CREATE PROCEDURE dbo.sp_cancelar_factura
     @factura_id INT,
-    @motivo_cancelacion VARCHAR(255),
+    @motivo_cancelacion VARCHAR(500),
     @usuario_id INT
 AS
 BEGIN
@@ -1426,96 +1426,79 @@ BEGIN
         -- 1. Validar que la factura existe
         IF NOT EXISTS (SELECT 1 FROM dbo.Factura WHERE factura_id = @factura_id)
         BEGIN
-            THROW 50106, 'No existe una factura con el ID especificado.', 1;
+            THROW 50115, 'La factura especificada no existe.', 1;
         END
         
-        -- Obtener estado actual de la factura
+        -- 2. Obtener estado actual
         DECLARE @estado_actual VARCHAR(20);
-        SELECT @estado_actual = estado_factura
-        FROM dbo.Factura
-        WHERE factura_id = @factura_id;
-        
-        -- 2. Validar que la factura NO esté ya cancelada
-        IF @estado_actual = 'Cancelada'
-        BEGIN
-            THROW 50117, 'La factura ya está cancelada.', 1;
-        END
-        
-        -- 3. Validar que la factura NO esté pagada
-        IF @estado_actual = 'Pagada'
-        BEGIN
-            THROW 50118, 'No se puede cancelar una factura que ya está pagada.', 1;
-        END
-        
-        -- 4. Validar que solo se pueden cancelar facturas Pendiente o Vencida
-        IF @estado_actual NOT IN ('Pendiente', 'Vencida')
-        BEGIN
-            THROW 50119, 'Solo se pueden cancelar facturas en estado Pendiente o Vencida.', 1;
-        END
-        
-        -- 5. Validar que NO tenga pagos registrados
-        IF EXISTS (SELECT 1 FROM dbo.Pago WHERE factura_id = @factura_id)
-        BEGIN
-            THROW 50120, 'No se puede cancelar una factura que tiene pagos registrados.', 1;
-        END
-        
-        -- 6. Validar motivo de cancelación no vacío
-        IF LTRIM(RTRIM(@motivo_cancelacion)) = '' OR @motivo_cancelacion IS NULL
-        BEGIN
-            THROW 50121, 'Debe especificar un motivo de cancelación.', 1;
-        END
-        
-        -- 7. Validar que el usuario existe
-        IF NOT EXISTS (SELECT 1 FROM dbo.Usuario WHERE usuario_id = @usuario_id)
-        BEGIN
-            THROW 50122, 'El usuario_id especificado no existe.', 1;
-        END
-        
-        -- 8. Obtener información de la factura para auditoría
         DECLARE @numero_factura VARCHAR(50);
         DECLARE @monto_total DECIMAL(12,2);
         
         SELECT 
+            @estado_actual = estado_factura,
             @numero_factura = numero_factura,
             @monto_total = monto_total
         FROM dbo.Factura
         WHERE factura_id = @factura_id;
         
+        -- 3. Validar que la factura NO esté ya cancelada
+        IF @estado_actual = 'Cancelada'
+        BEGIN
+            THROW 50117, 'La factura ya está cancelada.', 1;
+        END
+        
+        -- 4. Validar que la factura NO esté pagada
+        IF @estado_actual = 'Pagada'
+        BEGIN
+            THROW 50118, 'No se puede cancelar una factura que ya está pagada.', 1;
+        END
+        
+        -- 5. Validar que solo se pueden cancelar facturas Pendiente o Vencida
+        IF @estado_actual NOT IN ('Pendiente', 'Vencida')
+        BEGIN
+            THROW 50119, 'Solo se pueden cancelar facturas en estado Pendiente o Vencida.', 1;
+        END
+        
+        -- 6. Validar que NO tenga pagos registrados
+        IF EXISTS (SELECT 1 FROM dbo.Pago WHERE factura_id = @factura_id)
+        BEGIN
+            THROW 50120, 'No se puede cancelar una factura que tiene pagos registrados.', 1;
+        END
+        
+        -- 7. Validar motivo de cancelación no vacío
+        IF LTRIM(RTRIM(@motivo_cancelacion)) = '' OR @motivo_cancelacion IS NULL
+        BEGIN
+            THROW 50121, 'Debe especificar un motivo de cancelación.', 1;
+        END
+        
+        -- 8. Validar que el usuario existe
+        IF NOT EXISTS (SELECT 1 FROM dbo.Usuario WHERE usuario_id = @usuario_id)
+        BEGIN
+            THROW 50122, 'El usuario_id especificado no existe.', 1;
+        END
+        
         -- 9. Cambiar estado a Cancelada
+        -- ✅ El trigger trg_Factura_Auditoria_Update se encarga automáticamente
+        --    de registrar este cambio en Factura_Auditoria
         UPDATE dbo.Factura
         SET estado_factura = 'Cancelada'
         WHERE factura_id = @factura_id;
         
-        -- 10. Registrar en auditoría
-        DECLARE @valores_nuevos NVARCHAR(MAX) = JSON_OBJECT(
-            'estado_anterior': @estado_actual,
-            'estado_nuevo': 'Cancelada',
-            'motivo_cancelacion': @motivo_cancelacion,
-            'numero_factura': @numero_factura,
-            'monto_total': @monto_total,
-            'fecha_cancelacion': FORMAT(GETDATE(), 'yyyy-MM-dd HH:mm:ss')
-        );
-        
-        INSERT INTO dbo.Auditoria (
-            tabla_afectada,
-            operacion,
-            registro_id,
-            usuario_id,
-            fecha_hora,
-            valores_anteriores,
-            valores_nuevos
-        )
-        VALUES (
-            'Factura',
-            'UPDATE',
-            @factura_id,
-            @usuario_id,
-            GETDATE(),
-            JSON_OBJECT('estado_factura': @estado_actual),
-            @valores_nuevos
-        );
+        -- ❌ ELIMINADO: INSERT manual a dbo.Auditoria
+        -- Los triggers automáticos ya registran los cambios
         
         COMMIT TRANSACTION;
+        
+        -- Mensaje de éxito
+        SELECT 
+            'SUCCESS' AS resultado,
+            @factura_id AS factura_id,
+            @numero_factura AS numero_factura,
+            @estado_actual AS estado_anterior,
+            'Cancelada' AS estado_nuevo,
+            @motivo_cancelacion AS motivo,
+            @monto_total AS monto_total,
+            GETDATE() AS fecha_cancelacion;
         
         PRINT 'Factura ' + @numero_factura + ' cancelada exitosamente.';
         PRINT 'Motivo: ' + @motivo_cancelacion;
@@ -1528,9 +1511,6 @@ BEGIN
         THROW;
     END CATCH
 END
-GO
-
-PRINT '✓ SP: sp_cancelar_factura creado';
 GO
 
 PRINT '';
