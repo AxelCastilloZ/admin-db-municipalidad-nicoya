@@ -1,11 +1,14 @@
--- =============================================
--- ETL PARTE 2: POBLACI”N DE TABLA DE HECHOS
+Ôªø-- =============================================
+-- ETL PARTE 2: POBLACI√ìN DE TABLA DE HECHOS
 -- Datamart: Reportes Administrativos
--- Carga FACT_Factura con mÈtricas calculadas
--- VERSI”N CORREGIDA - Manejo correcto de rubro_id NULL
+-- Carga FACT_Factura con m√©tricas calculadas
+-- VERSI√ìN CORREGIDA - Asignaci√≥n correcta de rubro_id
 -- =============================================
 
 USE MunicipalidadNicoya;
+GO
+
+TRUNCATE TABLE DM.FACT_Factura;
 GO
 
 PRINT '';
@@ -17,7 +20,7 @@ GO
 
 -- =============================================
 -- TABLA DE HECHOS: FACT_Factura
--- ? CORRECCI”N: rubro_id puede ser NULL
+-- ‚úÖ CORRECCI√ìN: rubro_id asignado correctamente desde Detalle_factura
 -- =============================================
 
 PRINT 'Poblando FACT_Factura...';
@@ -49,7 +52,7 @@ SELECT
     dt_emision.tiempo_id,
     dt_venc.tiempo_id,
     
-    -- Contribuyente desde el tr·mite o inmueble
+    -- Contribuyente desde el tr√°mite o inmueble
     COALESCE(
         (SELECT contribuyente_id 
          FROM dbo.Tramite t 
@@ -61,25 +64,25 @@ SELECT
     
     f.inmueble_id,
     
-    -- ? Rubro principal (el de mayor monto) - PUEDE SER NULL
+    -- ‚úÖ CORRECCI√ìN: Rubro del detalle con mayor monto (considerando descuento)
     (SELECT TOP 1 df.rubro_id 
      FROM dbo.Detalle_factura df 
      WHERE df.factura_id = f.factura_id 
-     ORDER BY df.monto_unitario * df.cantidad DESC) AS rubro_id,
+     ORDER BY (df.monto_unitario * df.cantidad - df.descuento_linea) DESC) AS rubro_id,
     
     f.tramite_id,
     ef.estado_id,
     
-    -- M…TRICAS
+    -- M√âTRICAS
     f.monto_base,
     f.recargo,
     f.intereses,
     f.monto_total,
     
-    -- Cantidad de lÌneas
-    (SELECT COUNT(*) 
-     FROM dbo.Detalle_factura df 
-     WHERE df.factura_id = f.factura_id) AS cantidad_lineas,
+    -- Cantidad de l√≠neas
+    ISNULL((SELECT COUNT(*) 
+            FROM dbo.Detalle_factura df 
+            WHERE df.factura_id = f.factura_id), 0) AS cantidad_lineas,
     
     -- Monto pagado
     ISNULL((SELECT SUM(p.monto_pagado) 
@@ -94,7 +97,7 @@ SELECT
     -- Esta vencida
     CASE 
         WHEN f.fecha_vencimiento < CAST(GETDATE() AS DATE) 
-             AND f.estado_factura = 'Pendiente' 
+             AND f.estado_factura IN ('Pendiente', 'Vencida')
         THEN 1 
         ELSE 0 
     END AS esta_vencida,
@@ -105,10 +108,10 @@ SELECT
         ELSE 0 
     END AS esta_pagada,
     
-    -- DÌas de mora
+    -- D√≠as de mora
     CASE 
         WHEN f.fecha_vencimiento < CAST(GETDATE() AS DATE) 
-             AND f.estado_factura = 'Pendiente'
+             AND f.estado_factura IN ('Pendiente', 'Vencida')
         THEN DATEDIFF(DAY, f.fecha_vencimiento, GETDATE())
         ELSE NULL
     END AS dias_mora
@@ -125,24 +128,35 @@ SELECT @count_hechos = COUNT(*) FROM DM.FACT_Factura;
 PRINT 'Registros cargados: ' + CAST(@count_hechos AS VARCHAR);
 PRINT '';
 
--- Verificar cu·ntas facturas tienen rubro_id NULL
-DECLARE @count_sin_rubro INT;
-SELECT @count_sin_rubro = COUNT(*) FROM DM.FACT_Factura WHERE rubro_id IS NULL;
+-- Verificar cu√°ntas facturas tienen rubro_id NULL
+DECLARE @count_sin_rubro INT, @count_con_rubro INT;
+SELECT 
+    @count_sin_rubro = COUNT(CASE WHEN rubro_id IS NULL THEN 1 END),
+    @count_con_rubro = COUNT(CASE WHEN rubro_id IS NOT NULL THEN 1 END)
+FROM DM.FACT_Factura;
+
+PRINT '‚úÖ Facturas con rubro asignado: ' + CAST(@count_con_rubro AS VARCHAR);
+
 IF @count_sin_rubro > 0
 BEGIN
-    PRINT '?? Advertencia: ' + CAST(@count_sin_rubro AS VARCHAR) + ' facturas sin rubro_id asignado';
-    PRINT '   (Facturas sin detalles o en proceso de creaciÛn)';
+    PRINT '‚ö†Ô∏è Advertencia: ' + CAST(@count_sin_rubro AS VARCHAR) + ' facturas sin rubro_id asignado';
+    PRINT '   (Facturas sin detalles o en proceso de creaci√≥n)';
+    PRINT '';
+END
+ELSE
+BEGIN
+    PRINT '‚úÖ Todas las facturas tienen rubro asignado';
     PRINT '';
 END
 
 GO
 
 -- =============================================
--- ESTADÕSTICAS
+-- ESTAD√çSTICAS
 -- =============================================
 
 PRINT '========================================';
-PRINT 'ESTADÕSTICAS DEL DATAMART';
+PRINT 'ESTAD√çSTICAS DEL DATAMART';
 PRINT '========================================';
 PRINT '';
 GO
@@ -151,8 +165,8 @@ PRINT 'Facturas por Estado:';
 SELECT 
     ef.estado,
     COUNT(*) AS cantidad,
-    SUM(f.monto_total) AS monto_total,
-    SUM(f.saldo_pendiente) AS saldo_pendiente
+    FORMAT(SUM(f.monto_total), 'C', 'es-CR') AS monto_total,
+    FORMAT(SUM(f.saldo_pendiente), 'C', 'es-CR') AS saldo_pendiente
 FROM DM.FACT_Factura f
 INNER JOIN DM.DIM_Estado_Factura ef ON f.estado_factura_id = ef.estado_id
 GROUP BY ef.estado
@@ -160,15 +174,16 @@ ORDER BY cantidad DESC;
 GO
 
 PRINT '';
-PRINT 'RecaudaciÛn por Rubro (Top 5):';
+PRINT 'Recaudaci√≥n por Rubro (Top 5):';
 SELECT TOP 5
     r.nombre,
     COUNT(*) AS cantidad,
-    SUM(f.monto_total) AS total,
-    SUM(f.monto_pagado) AS pagado
+    FORMAT(SUM(f.monto_total), 'C', 'es-CR') AS total,
+    FORMAT(SUM(f.monto_pagado), 'C', 'es-CR') AS pagado,
+    CAST(SUM(f.monto_pagado) * 100.0 / NULLIF(SUM(f.monto_total), 0) AS DECIMAL(5,2)) AS porcentaje_efectividad
 FROM DM.FACT_Factura f
 INNER JOIN DM.DIM_Rubro r ON f.rubro_id = r.rubro_id
-WHERE f.rubro_id IS NOT NULL  -- ? Excluir facturas sin rubro
+WHERE f.rubro_id IS NOT NULL
 GROUP BY r.nombre
 ORDER BY SUM(f.monto_total) DESC;
 GO
@@ -177,7 +192,7 @@ PRINT '';
 PRINT 'Facturas Vencidas:';
 SELECT 
     COUNT(*) AS total_vencidas,
-    SUM(monto_total) AS deuda_total,
+    FORMAT(SUM(monto_total), 'C', 'es-CR') AS deuda_total,
     AVG(dias_mora) AS promedio_dias_mora,
     MAX(dias_mora) AS max_dias_mora
 FROM DM.FACT_Factura
@@ -185,11 +200,32 @@ WHERE esta_vencida = 1;
 GO
 
 PRINT '';
+PRINT 'Resumen por Rubro (todos):';
+SELECT 
+    CASE 
+        WHEN ff.rubro_id IS NULL THEN '‚ö†Ô∏è SIN RUBRO ASIGNADO'
+        ELSE r.nombre 
+    END AS rubro,
+    COUNT(*) AS cantidad_facturas,
+    FORMAT(SUM(ff.monto_total), 'C', 'es-CR') AS monto_total,
+    FORMAT(SUM(ff.monto_pagado), 'C', 'es-CR') AS monto_pagado,
+    FORMAT(SUM(ff.saldo_pendiente), 'C', 'es-CR') AS saldo_pendiente
+FROM DM.FACT_Factura ff
+LEFT JOIN DM.DIM_Rubro r ON ff.rubro_id = r.rubro_id
+GROUP BY ff.rubro_id, r.nombre
+ORDER BY SUM(ff.monto_total) DESC;
+GO
+
+PRINT '';
 PRINT '========================================';
 PRINT 'TABLA DE HECHOS CARGADA EXITOSAMENTE';
 PRINT '========================================';
 PRINT '';
-PRINT '? CORRECCI”N APLICADA:';
-PRINT '   El sistema maneja correctamente facturas sin rubro_id';
+PRINT '‚úÖ CORRECCI√ìN APLICADA:';
+PRINT '   El rubro_id se asigna correctamente desde Detalle_factura';
+PRINT '   considerando el detalle con mayor monto';
+PRINT '';
+PRINT 'Siguiente paso: Probar endpoint de Recaudaci√≥n por Rubro';
+PRINT 'GET /api/Reporte/recaudacionPorRubro';
 PRINT '';
 GO
