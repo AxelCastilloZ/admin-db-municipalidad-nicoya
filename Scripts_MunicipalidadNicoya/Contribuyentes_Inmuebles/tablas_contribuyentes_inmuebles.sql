@@ -1,8 +1,6 @@
 ﻿-- =============================================
 -- MÓDULO: CONTRIBUYENTES E INMUEBLES
 -- Script: Creación de Tablas
--- Descripción: Tablas de contribuyentes (físicos/jurídicos) e inmuebles
--- =============================================
 
 USE MunicipalidadNicoya;
 GO
@@ -10,7 +8,6 @@ GO
 PRINT '';
 PRINT '========================================';
 PRINT 'MÓDULO: CONTRIBUYENTES E INMUEBLES';
-PRINT '========================================';
 GO
 
 -- =============================================
@@ -25,7 +22,7 @@ IF EXISTS (SELECT * FROM sys.foreign_keys WHERE name = 'FK_Tramite_Inmueble')
 IF EXISTS (SELECT * FROM sys.foreign_keys WHERE name = 'FK_Tramite_Contribuyente')
     ALTER TABLE dbo.Tramite DROP CONSTRAINT FK_Tramite_Contribuyente;
 
--- FK desde módulo Pagos (CRÍTICO)
+-- FK desde módulo Pagos 
 IF EXISTS (SELECT * FROM sys.foreign_keys WHERE name = 'FK_Factura_Inmueble')
     ALTER TABLE dbo.Factura DROP CONSTRAINT FK_Factura_Inmueble;
 
@@ -86,7 +83,7 @@ DROP TABLE IF EXISTS dbo.TipoUsoInmueble;
 DROP TABLE IF EXISTS dbo.Contribuyente;
 GO
 
-PRINT '✓ Tablas eliminadas';
+PRINT ' Tablas eliminadas';
 GO
 
 
@@ -137,7 +134,7 @@ IF OBJECT_ID('dbo.TipoUsoInmueble', 'U') IS NOT NULL
 GO
 
 -- =============================================
--- TABLA: Contribuyente (Padre)
+-- TABLA: Contribuyente
 -- =============================================
 CREATE TABLE dbo.Contribuyente
 (
@@ -153,11 +150,11 @@ CREATE TABLE dbo.Contribuyente
 );
 GO
 
-PRINT '✓ Tabla Contribuyente creada';
+PRINT ' Tabla Contribuyente creada';
 GO
 
 -- =============================================
--- TABLA: Contribuyente_fisico (Hija)
+-- TABLA: Contribuyente_fisico 
 -- =============================================
 CREATE TABLE dbo.Contribuyente_fisico
 (
@@ -177,11 +174,11 @@ CREATE TABLE dbo.Contribuyente_fisico
 );
 GO
 
-PRINT '✓ Tabla Contribuyente_fisico creada';
+PRINT 'Tabla Contribuyente_fisico creada';
 GO
 
 -- =============================================
--- TABLA: Contribuyente_juridico (Hija)
+-- TABLA: Contribuyente_juridico 
 -- =============================================
 CREATE TABLE dbo.Contribuyente_juridico
 (
@@ -202,7 +199,7 @@ CREATE TABLE dbo.Contribuyente_juridico
 );
 GO
 
-PRINT '✓ Tabla Contribuyente_juridico creada';
+PRINT ' Tabla Contribuyente_juridico creada';
 GO
 
 -- =============================================
@@ -231,7 +228,7 @@ INSERT INTO TipoUsoInmueble (nombre_uso, descripcion) VALUES
 ('Recreativo', 'Parques, centros deportivos, áreas verdes');
 GO
 
-PRINT '✓ Tabla TipoUsoInmueble creada con datos iniciales';
+PRINT ' Tabla TipoUsoInmueble creada con datos iniciales';
 GO
 
 -- =============================================
@@ -256,7 +253,7 @@ CREATE TABLE dbo.Inmueble
 );
 GO
 
-PRINT '✓ Tabla Inmueble creada';
+PRINT ' Tabla Inmueble creada';
 GO
 
 -- =============================================
@@ -286,12 +283,12 @@ CREATE TABLE dbo.Contribuyente_Inmueble
 );
 GO
 
-PRINT '✓ Tabla Contribuyente_Inmueble creada';
+PRINT ' Tabla Contribuyente_Inmueble creada';
 GO
 
 PRINT '';
 PRINT '========================================';
-PRINT '✓ MÓDULO CONTRIBUYENTES E INMUEBLES';
+PRINT ' MÓDULO CONTRIBUYENTES E INMUEBLES';
 PRINT '  Todas las tablas creadas exitosamente';
 PRINT '========================================';
 GO
@@ -322,7 +319,7 @@ GO
 CREATE INDEX IX_Catastro_Inmueble ON dbo.Catastro(inmueble_id);
 GO
 
-PRINT '✓ Tabla Catastro creada';
+PRINT ' Tabla Catastro creada';
 GO
 
 -- =============================================
@@ -347,7 +344,7 @@ GO
 CREATE INDEX IX_Colindancias_Catastro ON dbo.Colindancias(catastro_id);
 GO
 
-PRINT '✓ Tabla Colindancias creada';
+PRINT ' Tabla Colindancias creada';
 GO
 
 -- =============================================
@@ -374,12 +371,12 @@ GO
 CREATE INDEX IX_ObservacionInmueble_Inmueble ON dbo.ObservacionInmueble(inmueble_id);
 GO
 
-PRINT '✓ Tabla ObservacionInmueble creada';
+PRINT ' Tabla ObservacionInmueble creada';
 GO
 
 PRINT '';
 PRINT '========================================';
-PRINT '✓ TABLAS CREADAS';
+PRINT ' TABLAS CREADAS';
 PRINT '  - Catastro';
 PRINT '  - Colindancias';
 PRINT '  - ObservacionInmueble';
@@ -404,7 +401,7 @@ GO
 
 PRINT '';
 PRINT '========================================';
-PRINT '🏗️ CREACIÓN DE TABLA: Servicio_Inmueble';
+PRINT ' CREACIÓN DE TABLA: Servicio_Inmueble';
 PRINT '========================================';
 PRINT '';
 
@@ -413,7 +410,7 @@ PRINT '';
 -- 2. CREAR TABLA SERVICIO_INMUEBLE
 -- =============================================
 
-PRINT '📦 Creando tabla Servicio_Inmueble...';
+PRINT ' Creando tabla Servicio_Inmueble...';
 GO
 
 CREATE TABLE dbo.Servicio_Inmueble (
@@ -431,7 +428,7 @@ CREATE TABLE dbo.Servicio_Inmueble (
     fecha_inicio DATE NOT NULL DEFAULT GETDATE(),
     fecha_fin DATE NULL,
     
-    -- Tarifa personalizada (opcional)
+    -- Tarifa personalizada 
     tarifa_personalizada DECIMAL(12,2) NULL,
     
     -- Observaciones
@@ -447,13 +444,13 @@ CREATE TABLE dbo.Servicio_Inmueble (
     -- CONSTRAINT: Claves foráneas (relaciones)
     -- =============================================
     
-    -- Relación con Inmueble (N:1)
+    -- Relación con Inmueble
     CONSTRAINT FK_ServicioInmueble_Inmueble 
         FOREIGN KEY (inmueble_id) 
         REFERENCES dbo.Inmueble(inmueble_id)
         ON DELETE CASCADE,  -- Si eliminas inmueble, eliminas sus servicios
     
-    -- Relación con Rubro (N:1)
+    -- Relación con Rubro 
     CONSTRAINT FK_ServicioInmueble_Rubro 
         FOREIGN KEY (rubro_id) 
         REFERENCES dbo.Rubro(rubro_id)
@@ -478,14 +475,14 @@ CREATE TABLE dbo.Servicio_Inmueble (
         CHECK (tarifa_personalizada IS NULL OR tarifa_personalizada >= 0)
 );
 
-PRINT '   ✓ Tabla creada exitosamente';
+PRINT '    Tabla creada exitosamente';
 PRINT '';
 
 -- =============================================
 -- 3. CREAR ÍNDICES PARA OPTIMIZACIÓN
 -- =============================================
 
-PRINT '📊 Creando índices de optimización...';
+PRINT ' Creando índices de optimización...';
 GO
 
 -- Índice para buscar servicios activos de un inmueble
@@ -494,7 +491,7 @@ CREATE NONCLUSTERED INDEX IDX_ServicioInmueble_Inmueble_Activo
     INCLUDE (rubro_id, tarifa_personalizada)
     WHERE activo = 1;
 
-PRINT '   ✓ IDX_ServicioInmueble_Inmueble_Activo creado';
+PRINT '    IDX_ServicioInmueble_Inmueble_Activo creado';
 
 -- Índice para buscar qué inmuebles tienen un servicio específico
 CREATE NONCLUSTERED INDEX IDX_ServicioInmueble_Rubro_Activo
@@ -502,108 +499,22 @@ CREATE NONCLUSTERED INDEX IDX_ServicioInmueble_Rubro_Activo
     INCLUDE (inmueble_id)
     WHERE activo = 1;
 
-PRINT '   ✓ IDX_ServicioInmueble_Rubro_Activo creado';
+PRINT '    IDX_ServicioInmueble_Rubro_Activo creado';
 
 -- Índice para consultas por fecha
 CREATE NONCLUSTERED INDEX IDX_ServicioInmueble_FechaInicio
     ON dbo.Servicio_Inmueble(fecha_inicio)
     INCLUDE (inmueble_id, rubro_id, activo);
 
-PRINT '   ✓ IDX_ServicioInmueble_FechaInicio creado';
+PRINT '   IDX_ServicioInmueble_FechaInicio creado';
 
-PRINT '';
 
--- =============================================
--- 4. DOCUMENTACIÓN DE LA TABLA
--- =============================================
 
-PRINT '========================================';
-PRINT '📖 DOCUMENTACIÓN';
-PRINT '========================================';
-PRINT '';
-PRINT 'Tabla: Servicio_Inmueble';
-PRINT '';
-PRINT 'Propósito:';
-PRINT '  Almacena la configuración PERMANENTE de servicios';
-PRINT '  que tiene contratados cada inmueble.';
-PRINT '';
-PRINT 'Columnas:';
-PRINT '  - servicio_inmueble_id: ID único (autoincremental)';
-PRINT '  - inmueble_id: FK → Inmueble (¿PARA CUÁL inmueble?)';
-PRINT '  - rubro_id: FK → Rubro (¿QUÉ servicio tiene?)';
-PRINT '  - activo: 1=Activo, 0=Desactivado';
-PRINT '  - fecha_inicio: Desde cuándo tiene el servicio';
-PRINT '  - fecha_fin: Cuándo se desactivó (NULL si activo)';
-PRINT '  - tarifa_personalizada: Tarifa especial (anula tarifa del rubro)';
-PRINT '  - observaciones: Notas adicionales';
-PRINT '';
-PRINT 'Relaciones:';
-PRINT '  ┌─────────────┐';
-PRINT '  │  Inmueble   │';
-PRINT '  └──────┬──────┘';
-PRINT '         │ 1';
-PRINT '         │';
-PRINT '         │ N';
-PRINT '  ┌──────┴────────────┐      N  ┌─────────┐';
-PRINT '  │ Servicio_Inmueble │◄────────┤  Rubro  │';
-PRINT '  └───────────────────┘      1  └─────────┘';
-PRINT '';
-PRINT 'Restricciones:';
-PRINT '  ✓ Un inmueble NO puede tener duplicado el mismo servicio';
-PRINT '  ✓ fecha_fin debe ser >= fecha_inicio';
-PRINT '  ✓ tarifa_personalizada no puede ser negativa';
-PRINT '  ✓ Si eliminas inmueble → se eliminan sus servicios (CASCADE)';
-PRINT '  ✓ NO puedes eliminar rubro si tiene servicios activos';
-PRINT '';
 
--- =============================================
--- 5. EJEMPLOS DE USO
--- =============================================
+
 
 PRINT '========================================';
-PRINT '📝 EJEMPLOS DE USO';
-PRINT '========================================';
-PRINT '';
-PRINT '-- Ejemplo 1: Agregar servicios a un inmueble';
-PRINT 'INSERT INTO Servicio_Inmueble (inmueble_id, rubro_id, activo)';
-PRINT 'VALUES ';
-PRINT '  (123, 1, 1),  -- Impuesto territorial';
-PRINT '  (123, 2, 1),  -- Recolección basura';
-PRINT '  (123, 3, 1);  -- Alumbrado público';
-PRINT '';
-PRINT '-- Ejemplo 2: Consultar servicios activos de un inmueble';
-PRINT 'SELECT ';
-PRINT '    si.servicio_inmueble_id,';
-PRINT '    r.nombre AS servicio,';
-PRINT '    si.fecha_inicio,';
-PRINT '    si.tarifa_personalizada';
-PRINT 'FROM Servicio_Inmueble si';
-PRINT 'INNER JOIN Rubro r ON si.rubro_id = r.rubro_id';
-PRINT 'WHERE si.inmueble_id = 123';
-PRINT '  AND si.activo = 1;';
-PRINT '';
-PRINT '-- Ejemplo 3: Desactivar un servicio';
-PRINT 'UPDATE Servicio_Inmueble';
-PRINT 'SET activo = 0,';
-PRINT '    fecha_fin = GETDATE()';
-PRINT 'WHERE inmueble_id = 123';
-PRINT '  AND rubro_id = 3;  -- Desactivar alumbrado';
-PRINT '';
-PRINT '-- Ejemplo 4: Reactivar un servicio';
-PRINT 'UPDATE Servicio_Inmueble';
-PRINT 'SET activo = 1,';
-PRINT '    fecha_fin = NULL,';
-PRINT '    fecha_inicio = GETDATE()';
-PRINT 'WHERE inmueble_id = 123';
-PRINT '  AND rubro_id = 3;';
-PRINT '';
-
--- =============================================
--- 6. VERIFICACIÓN FINAL
--- =============================================
-
-PRINT '========================================';
-PRINT '✅ VERIFICACIÓN';
+PRINT ' VERIFICACIÓN';
 PRINT '========================================';
 PRINT '';
 
@@ -613,7 +524,7 @@ IF OBJECT_ID('dbo.Servicio_Inmueble', 'U') IS NOT NULL
 ELSE
     PRINT '✗ ERROR: La tabla NO se creó';
 
--- Verificar relaciones (FK)
+-- Verificar relaciones 
 IF EXISTS (
     SELECT 1 FROM sys.foreign_keys 
     WHERE name = 'FK_ServicioInmueble_Inmueble'
@@ -646,11 +557,11 @@ FROM sys.indexes
 WHERE object_id = OBJECT_ID('dbo.Servicio_Inmueble')
   AND name IS NOT NULL;
 
-PRINT '✓ Total de índices creados: ' + CAST(@cant_indices AS VARCHAR);
+PRINT ' Total de índices creados: ' + CAST(@cant_indices AS VARCHAR);
 
 PRINT '';
 PRINT '========================================';
-PRINT '🎉 TABLA SERVICIO_INMUEBLE LISTA';
+PRINT 'TABLA SERVICIO_INMUEBLE LISTA';
 PRINT '========================================';
 PRINT '';
 PRINT 'Próximos pasos:';

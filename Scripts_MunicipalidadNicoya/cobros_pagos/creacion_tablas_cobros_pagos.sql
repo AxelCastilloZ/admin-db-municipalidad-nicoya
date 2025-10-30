@@ -18,7 +18,7 @@ GO
 -- ELIMINAR RESTRICCIONES FK ANTES DE DROP
 -- =============================================
 
--- ✅ AGREGADO: FK desde Servicio_Inmueble (CRÍTICA)
+--  FK desde Servicio_Inmueble 
 IF EXISTS (SELECT * FROM sys.foreign_keys WHERE name = 'FK_ServicioInmueble_Rubro')
     ALTER TABLE dbo.Servicio_Inmueble DROP CONSTRAINT FK_ServicioInmueble_Rubro;
 
@@ -97,10 +97,10 @@ IF OBJECT_ID('dbo.Rubro', 'U') IS NOT NULL
     DROP TABLE dbo.Rubro;
 GO
 
-PRINT '✓ Tablas eliminadas';
+PRINT ' Tablas eliminadas';
 GO
 
-PRINT '✓ Tablas eliminadas';
+PRINT ' Tablas eliminadas';
 GO
 
 -- =============================================
@@ -200,7 +200,7 @@ CREATE INDEX IX_Factura_TramiteId ON dbo.Factura(tramite_id);
 CREATE INDEX IX_Factura_InmuebleId ON dbo.Factura(inmueble_id);
 GO
 
-PRINT '✓ Tabla Factura creada';
+PRINT ' Tabla Factura creada';
 GO
 
 -- =============================================
@@ -237,7 +237,7 @@ CREATE INDEX IX_DetalleFactura_FacturaId ON dbo.Detalle_factura(factura_id);
 CREATE INDEX IX_DetalleFactura_RubroId ON dbo.Detalle_factura(rubro_id);
 GO
 
-PRINT '✓ Tabla Detalle_factura creada';
+PRINT ' Tabla Detalle_factura creada';
 GO
 
 -- =============================================
@@ -270,7 +270,7 @@ CREATE INDEX IX_Pago_FacturaId ON dbo.Pago(factura_id);
 CREATE INDEX IX_Pago_FechaPago ON dbo.Pago(fecha_pago);
 GO
 
-PRINT '✓ Tabla Pago creada';
+PRINT ' Tabla Pago creada';
 GO
 
 
