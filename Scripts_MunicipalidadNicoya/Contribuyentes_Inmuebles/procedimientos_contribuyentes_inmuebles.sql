@@ -69,7 +69,7 @@ BEGIN
 END;
 GO
 -- =============================================
--- SP: Insertar Contribuyente Jurídico (CORREGIDO)
+-- SP: Insertar Contribuyente Jurídico 
 -- =============================================
 IF OBJECT_ID('sp_Contribuyente_InsertarJuridico', 'P') IS NOT NULL
     DROP PROCEDURE sp_Contribuyente_InsertarJuridico;
@@ -128,7 +128,7 @@ BEGIN
             @contribuyente_id, 
             @cedula_juridica, 
             @nombre_empresa, 
-            @contribuyentes_fisicos_id  -- ✅ Usar el ID de la tabla física
+            @contribuyentes_fisicos_id  
         );
         
         COMMIT TRANSACTION;
@@ -147,7 +147,7 @@ BEGIN
 END;
 GO
 
-PRINT '✓ SP sp_Contribuyente_InsertarJuridico corregido';
+PRINT ' SP sp_Contribuyente_InsertarJuridico corregido';
 GO
 
 -- =============================================
@@ -180,7 +180,7 @@ BEGIN
         cj.cedula_juridica,
         cj.nombre_empresa,
         cj.representante_legal_id,
-        -- ✅ NUEVO: Datos del representante legal
+     
         rep.cedula AS representante_legal_cedula,
         rep.nombre AS representante_legal_nombre,
         rep.apellido1 AS representante_legal_apellido1,
@@ -194,7 +194,7 @@ END;
 GO
 
 -- =============================================
--- SP MODIFICADO: sp_Contribuyente_ListarTodos
+-- SP: sp_Contribuyente_ListarTodos
 -- =============================================
 IF OBJECT_ID('sp_Contribuyente_ListarTodos', 'P') IS NOT NULL
     DROP PROCEDURE sp_Contribuyente_ListarTodos;
@@ -222,7 +222,7 @@ BEGIN
         cj.cedula_juridica,
         cj.nombre_empresa,
         cj.representante_legal_id,
-        -- ✅ NUEVO: Datos del representante legal
+        -- Datos del representante legal
         rep.cedula AS representante_legal_cedula,
         rep.nombre AS representante_legal_nombre,
         rep.apellido1 AS representante_legal_apellido1,
@@ -333,7 +333,7 @@ BEGIN
 END;
 GO
 
-PRINT '✓ SP sp_Contribuyente_ActualizarFisico creado exitosamente';
+PRINT ' SP sp_Contribuyente_ActualizarFisico creado exitosamente';
 GO
 
 
@@ -348,7 +348,7 @@ CREATE PROCEDURE sp_Contribuyente_ActualizarJuridico
     @contribuyente_id INT,
     @cedula_juridica VARCHAR(50),
     @nombre_empresa VARCHAR(50),
-    @representante_legal_id INT,  -- Este es el contribuyente_id del físico
+    @representante_legal_id INT,  
     @telefono VARCHAR(20) = NULL,
     @email VARCHAR(100) = NULL,
     @direccion VARCHAR(255) = NULL
@@ -439,7 +439,7 @@ BEGIN
 END;
 GO
 
-PRINT '✓ SP sp_Contribuyente_ActualizarJuridico corregido';
+PRINT 'SP sp_Contribuyente_ActualizarJuridico corregido';
 GO
 
 -- SP: Eliminar Contribuyente
@@ -475,7 +475,7 @@ BEGIN
             RETURN;
         END
         
-        -- ✅ VALIDACIÓN 2: Verificar si tiene inmuebles asociados
+        --  VALIDACIÓN 2: Verificar si tiene inmuebles asociados
         IF EXISTS (
             SELECT 1 FROM Contribuyente_Inmueble 
             WHERE contribuyente_id = @contribuyente_id
@@ -504,7 +504,7 @@ BEGIN
 END;
 GO
 
-PRINT '✓ SP sp_Contribuyente_Eliminar actualizado con validaciones de negocio';
+PRINT 'SP sp_Contribuyente_Eliminar actualizado con validaciones de negocio';
 GO
 
 -- =============================================
@@ -742,8 +742,8 @@ BEGIN
 END;
 GO
 
--- SP: Actualizar Inmueble
--- SP: Actualizar Catastro (CORREGIDO)
+
+-- SP: Actualizar Catastro
 IF OBJECT_ID('sp_Catastro_Actualizar', 'P') IS NOT NULL
     DROP PROCEDURE sp_Catastro_Actualizar;
 GO
@@ -793,12 +793,12 @@ BEGIN
             estado = @estado
         WHERE catastro_id = @catastro_id;
         
-        -- ✅ SOLUCIÓN: Capturar y retornar las filas afectadas
+        -- Capturar y retornar las filas afectadas
         SET @RowsAffected = @@ROWCOUNT;
         
         COMMIT TRANSACTION;
         
-        -- ✅ Retornar el resultado (consistente con sp_Inmueble_Actualizar)
+        -- Retornar el resultado
         SELECT @RowsAffected AS RowsAffected, 'SUCCESS' AS Status;
         
     END TRY
@@ -884,29 +884,6 @@ BEGIN
 END;
 GO
 
-PRINT '';
-PRINT '========================================';
-PRINT '✓ STORED PROCEDURES - CONTRIBUYENTES E INMUEBLES';
-PRINT '========================================';
-PRINT 'SPs Contribuyentes:';
-PRINT '  - sp_Contribuyente_InsertarFisico';
-PRINT '  - sp_Contribuyente_InsertarJuridico';
-PRINT '  - sp_Contribuyente_ConsultarCompleto';
-PRINT '  - sp_Contribuyente_ListarTodos';
-PRINT '  - sp_Contribuyente_Eliminar';
-PRINT '';
-PRINT 'SPs Inmuebles:';
-PRINT '  - sp_TipoUsoInmueble_Listar';
-PRINT '  - sp_Inmueble_Insertar';
-PRINT '  - sp_Inmueble_AsociarContribuyente';
-PRINT '  - sp_Inmueble_ListarTodos';
-PRINT '  - sp_Inmueble_ConsultarPorID';
-PRINT '  - sp_Inmueble_PorContribuyente';
-PRINT '  - sp_Inmueble_Actualizar';
-PRINT '  - sp_Inmueble_Eliminar';
-PRINT '  - sp_Inmueble_DesasociarContribuyente';
-PRINT '========================================';
-GO
 
 
 
@@ -933,11 +910,11 @@ BEGIN
     DECLARE @existe_inmueble INT;
     
     BEGIN TRY
-        -- Debug: Verificar base de datos actual
+        
         DECLARE @dbName NVARCHAR(128) = DB_NAME();
         PRINT 'Base de datos actual: ' + @dbName;
         
-        -- Verificar si el inmueble existe (con contador)
+        -- Verificar si el inmueble existe
         SELECT @existe_inmueble = COUNT(*) 
         FROM dbo.Inmueble 
         WHERE inmueble_id = @inmueble_id;
@@ -1105,7 +1082,7 @@ BEGIN
             THROW 50001, 'El catastro no existe', 1;
         END
         
-        -- Validar número de plano duplicado (excluyendo el actual)
+        -- Validar número de plano duplicado 
         IF EXISTS (
             SELECT 1 FROM Catastro 
             WHERE numero_plano_catastral = @numero_plano_catastral 
@@ -1271,7 +1248,7 @@ BEGIN
 END;
 GO
 
--- SP: Actualizar Colindancia (CORREGIDO)
+-- SP: Actualizar Colindancia
 IF OBJECT_ID('sp_Colindancia_Actualizar', 'P') IS NOT NULL
     DROP PROCEDURE sp_Colindancia_Actualizar;
 GO
@@ -1307,7 +1284,7 @@ BEGIN
         FROM Colindancias 
         WHERE colindancias_id = @colindancias_id;
         
-        -- ✅ CORRECCIÓN: Solo validar duplicados SI se está CAMBIANDO el punto cardinal
+        -- Solo validar duplicados SI se está CAMBIANDO el punto cardinal
         IF @punto_cardinal <> @punto_cardinal_actual
         BEGIN
             IF EXISTS (
@@ -1341,7 +1318,7 @@ BEGIN
 END;
 GO
 
-PRINT '✓ SP sp_Colindancia_Actualizar corregido';
+PRINT ' SP sp_Colindancia_Actualizar corregido';
 GO
 
 -- SP: Eliminar Colindancia
@@ -1467,7 +1444,7 @@ IF OBJECT_ID('sp_ObservacionInmueble_ListarPorCatastro', 'P') IS NOT NULL
     DROP PROCEDURE sp_ObservacionInmueble_ListarPorCatastro;
 GO
 
-PRINT '✓ SP obsoleto sp_ObservacionInmueble_ListarPorCatastro eliminado';
+PRINT 'SP obsoleto sp_ObservacionInmueble_ListarPorCatastro eliminado';
 GO
 
 
@@ -1611,33 +1588,7 @@ BEGIN
 END;
 GO
 
-PRINT '';
-PRINT '========================================';
-PRINT '✓ STORED PROCEDURES - CATASTRO Y OBSERVACIONES';
-PRINT '========================================';
-PRINT 'SPs Catastro:';
-PRINT '  - sp_Catastro_Insertar';
-PRINT '  - sp_Catastro_ConsultarPorID';
-PRINT '  - sp_Catastro_ConsultarPorInmueble';
-PRINT '  - sp_Catastro_ListarTodos';
-PRINT '  - sp_Catastro_Actualizar';
-PRINT '  - sp_Catastro_Eliminar';
-PRINT '  - sp_Catastro_ConsultarCompleto';
-PRINT '';
-PRINT 'SPs Colindancias:';
-PRINT '  - sp_Colindancia_Insertar';
-PRINT '  - sp_Colindancia_ListarPorCatastro';
-PRINT '  - sp_Colindancia_Actualizar';
-PRINT '  - sp_Colindancia_Eliminar';
-PRINT '';
-PRINT 'SPs Observaciones:';
-PRINT '  - sp_ObservacionInmueble_Insertar';
-PRINT '  - sp_ObservacionInmueble_ListarPorInmueble';
-PRINT '  - sp_ObservacionInmueble_ListarPorCatastro';
-PRINT '  - sp_ObservacionInmueble_Actualizar';
-PRINT '  - sp_ObservacionInmueble_Eliminar';
-PRINT '========================================';
-GO
+
 
 
 
@@ -1695,23 +1646,6 @@ BEGIN
     WHERE o.inmueble_id = @inmueble_id
     ORDER BY o.fecha DESC;
 END;
-GO
-
-PRINT '';
-PRINT '========================================';
-PRINT '✓ STORED PROCEDURES ACTUALIZADOS';
-PRINT '========================================';
-PRINT 'SPs Corregidos:';
-PRINT '  - sp_ObservacionInmueble_Insertar (sin catastro_id)';
-PRINT '  - sp_ObservacionInmueble_ListarPorInmueble';
-PRINT '  - sp_Catastro_ConsultarCompleto';
-PRINT '';
-PRINT 'SPs Nuevos:';
-PRINT '  - sp_ObservacionInmueble_ListarConCatastro';
-PRINT '';
-PRINT 'SPs Eliminados:';
-PRINT '  - sp_ObservacionInmueble_ListarPorCatastro (obsoleto)';
-PRINT '========================================';
 GO
 
 

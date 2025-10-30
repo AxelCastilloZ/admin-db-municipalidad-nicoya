@@ -2,9 +2,6 @@
 
 
 
-
-
-
 USE MunicipalidadNicoya;
 GO
 
@@ -14,7 +11,7 @@ CREATE OR ALTER PROCEDURE sp_Usuario_Registrar
     @apellido1 VARCHAR(50),
     @apellido2 VARCHAR(50) = NULL,
     @email VARCHAR(100),
-    @password VARCHAR(255),  -- Recibe password en texto plano
+    @password VARCHAR(255), 
     @rol_id INT
 AS
 BEGIN
@@ -371,7 +368,7 @@ BEGIN
 END
 GO
 
--- SP: Eliminar Usuario (l�gico)
+-- SP: Eliminar Usuario 
 CREATE OR ALTER PROCEDURE sp_Usuario_Eliminar
     @usuario_id INT
 AS
@@ -398,7 +395,7 @@ BEGIN
 END
 GO
 
--- VERIFICACI�N
+
 -- Ver roles creados
 SELECT * FROM Rol;
 
