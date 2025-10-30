@@ -1,28 +1,8 @@
-﻿-- =============================================
--- CONSULTAS EJEMPLO - REPORTES ADMINISTRATIVOS
--- Datamart: Esquema Estrella
--- VERSIÓN CORREGIDA - Maneja rubro_id NULL
--- =============================================
-
+﻿-- CONSULTAS EJEMPLO - REPORTES ADMINISTRATIVOS
 USE MunicipalidadNicoya;
 GO
 
-PRINT '';
-PRINT '========================================';
-PRINT '📊 CONSULTAS EJEMPLO - REPORTES';
-PRINT '========================================';
-PRINT '';
-GO
-
--- =============================================
--- REPORTE 1: RECAUDACIÓN MUNICIPAL POR PERIODO
--- =============================================
-
-PRINT '📈 REPORTE 1: Recaudación Municipal por Periodo';
-PRINT '-----------------------------------------------';
-GO
-
--- Por Año
+-- Reporte 1: Recaudación municipal por periodo (Año)
 SELECT 
     t.anio AS 'Año',
     COUNT(f.fact_factura_id) AS 'Total Facturas',
@@ -39,7 +19,7 @@ GROUP BY t.anio
 ORDER BY t.anio DESC;
 GO
 
--- Por Trimestre
+-- Reporte 1: Recaudación por trimestre (año actual)
 SELECT 
     t.anio AS 'Año',
     t.trimestre AS 'Trimestre',
@@ -54,7 +34,7 @@ GROUP BY t.anio, t.trimestre
 ORDER BY t.trimestre;
 GO
 
--- Por Mes (últimos 12 meses)
+-- Reporte 1: Recaudación por mes (últimos 12 meses)
 SELECT 
     t.anio AS 'Año',
     t.mes_nombre AS 'Mes',
@@ -68,18 +48,7 @@ GROUP BY t.anio, t.mes, t.mes_nombre
 ORDER BY t.anio DESC, t.mes DESC;
 GO
 
-PRINT '';
-GO
-
--- =============================================
--- REPORTE 2: RECAUDACIÓN POR TIPO DE RUBRO
--- ✅ MODIFICADO: Excluye facturas sin rubro
--- =============================================
-
-PRINT '💰 REPORTE 2: Recaudación por Tipo de Rubro';
-PRINT '-----------------------------------------------';
-GO
-
+-- Reporte 2: Recaudación por tipo de rubro (excluye NULL)
 SELECT 
     r.nombre AS 'Rubro',
     r.periodicidad AS 'Periodicidad',
@@ -92,12 +61,12 @@ SELECT
     CAST(SUM(f.monto_pagado) * 100.0 / NULLIF(SUM(f.monto_total), 0) AS DECIMAL(5,2)) AS '% Efectividad'
 FROM DM.FACT_Factura f
 INNER JOIN DM.DIM_Rubro r ON f.rubro_id = r.rubro_id
-WHERE f.rubro_id IS NOT NULL  -- ✅ Excluir facturas sin rubro
+WHERE f.rubro_id IS NOT NULL
 GROUP BY r.nombre, r.periodicidad
 ORDER BY SUM(f.monto_total) DESC;
 GO
 
--- Facturas sin rubro asignado
+-- Reporte 2: Facturas sin rubro asignado
 SELECT 
     COUNT(*) AS 'Facturas sin Rubro',
     FORMAT(SUM(monto_total), 'C', 'es-CR') AS 'Monto Total'
@@ -105,18 +74,7 @@ FROM DM.FACT_Factura
 WHERE rubro_id IS NULL;
 GO
 
-PRINT '';
-GO
-
--- =============================================
--- REPORTE 3: ESTADO DE MOROSIDAD
--- =============================================
-
-PRINT '⚠️ REPORTE 3: Estado de Morosidad';
-PRINT '-----------------------------------------------';
-GO
-
--- Resumen general de morosidad
+-- Reporte 3: Estado de morosidad (resumen general)
 SELECT 
     'RESUMEN DE MOROSIDAD' AS 'Indicador',
     COUNT(CASE WHEN esta_vencida = 1 THEN 1 END) AS 'Facturas Vencidas',
@@ -126,7 +84,7 @@ SELECT
 FROM DM.FACT_Factura;
 GO
 
--- Top 10 contribuyentes morosos
+-- Reporte 3: Top 10 contribuyentes morosos
 SELECT TOP 10
     c.nombre AS 'Contribuyente',
     c.tipo_contribuyente AS 'Tipo',
@@ -141,7 +99,7 @@ GROUP BY c.nombre, c.tipo_contribuyente, c.cedula
 ORDER BY SUM(f.saldo_pendiente) DESC;
 GO
 
--- Morosidad por rubro (✅ excluye NULL)
+-- Reporte 3: Morosidad por rubro (excluye NULL)
 SELECT 
     r.nombre AS 'Rubro',
     COUNT(f.fact_factura_id) AS 'Facturas Vencidas',
@@ -154,17 +112,7 @@ GROUP BY r.nombre
 ORDER BY SUM(f.saldo_pendiente) DESC;
 GO
 
-PRINT '';
-GO
-
--- =============================================
--- REPORTE 4: RECAUDACIÓN POR DISTRITO
--- =============================================
-
-PRINT '🗺️ REPORTE 4: Recaudación por Distrito';
-PRINT '-----------------------------------------------';
-GO
-
+-- Reporte 4: Recaudación por distrito (desde DIM_Inmueble)
 SELECT 
     ISNULL(i.distrito, 'Sin Distrito') AS 'Distrito',
     COUNT(DISTINCT f.contribuyente_id) AS 'Contribuyentes',
@@ -179,17 +127,7 @@ GROUP BY i.distrito
 ORDER BY SUM(f.monto_total) DESC;
 GO
 
-PRINT '';
-GO
-
--- =============================================
--- REPORTE 5: ANÁLISIS DE TRÁMITES
--- =============================================
-
-PRINT '📝 REPORTE 5: Análisis de Trámites';
-PRINT '-----------------------------------------------';
-GO
-
+-- Reporte 5: Análisis de trámites
 SELECT 
     t.tipo_tramite AS 'Tipo de Trámite',
     t.estado_tramite AS 'Estado',
@@ -203,17 +141,7 @@ GROUP BY t.tipo_tramite, t.estado_tramite
 ORDER BY COUNT(f.fact_factura_id) DESC;
 GO
 
-PRINT '';
-GO
-
--- =============================================
--- REPORTE 6: COMPARATIVO AÑO ACTUAL VS ANTERIOR
--- =============================================
-
-PRINT '📊 REPORTE 6: Comparativo Año Actual vs Anterior';
-PRINT '-----------------------------------------------';
-GO
-
+-- Reporte 6: Comparativo año actual vs anterior
 WITH RecaudacionAnual AS (
     SELECT 
         t.anio,
@@ -241,100 +169,41 @@ WHERE a.anio = YEAR(GETDATE()) - 1
 ORDER BY a.mes;
 GO
 
-PRINT '';
-GO
-
--- =============================================
--- REPORTE 7: INDICADORES CLAVE (KPIs)
--- =============================================
-
-PRINT '🎯 REPORTE 7: Indicadores Clave de Desempeño (KPIs)';
-PRINT '-----------------------------------------------';
-GO
-
+-- Reporte 7: Indicadores clave (KPIs)
 SELECT 
     'Total Facturado' AS 'Indicador',
     FORMAT(SUM(monto_total), 'C', 'es-CR') AS 'Valor'
 FROM DM.FACT_Factura
 
 UNION ALL
-
-SELECT 
-    'Total Recaudado',
-    FORMAT(SUM(monto_pagado), 'C', 'es-CR')
-FROM DM.FACT_Factura
+SELECT 'Total Recaudado', FORMAT(SUM(monto_pagado), 'C', 'es-CR') FROM DM.FACT_Factura
 
 UNION ALL
-
-SELECT 
-    'Saldo Pendiente',
-    FORMAT(SUM(saldo_pendiente), 'C', 'es-CR')
-FROM DM.FACT_Factura
+SELECT 'Saldo Pendiente', FORMAT(SUM(saldo_pendiente), 'C', 'es-CR') FROM DM.FACT_Factura
 
 UNION ALL
-
-SELECT 
-    '% Efectividad Recaudación',
-    CAST(SUM(monto_pagado) * 100.0 / NULLIF(SUM(monto_total), 0) AS VARCHAR(10)) + '%'
-FROM DM.FACT_Factura
+SELECT '% Efectividad Recaudación', CAST(SUM(monto_pagado) * 100.0 / NULLIF(SUM(monto_total), 0) AS VARCHAR(10)) + '%' FROM DM.FACT_Factura
 
 UNION ALL
-
-SELECT 
-    'Facturas Totales',
-    CAST(COUNT(*) AS VARCHAR)
-FROM DM.FACT_Factura
+SELECT 'Facturas Totales', CAST(COUNT(*) AS VARCHAR) FROM DM.FACT_Factura
 
 UNION ALL
-
-SELECT 
-    'Facturas Pagadas',
-    CAST(COUNT(*) AS VARCHAR)
-FROM DM.FACT_Factura
-WHERE esta_pagada = 1
+SELECT 'Facturas Pagadas', CAST(COUNT(*) AS VARCHAR) FROM DM.FACT_Factura WHERE esta_pagada = 1
 
 UNION ALL
-
-SELECT 
-    'Facturas Vencidas',
-    CAST(COUNT(*) AS VARCHAR)
-FROM DM.FACT_Factura
-WHERE esta_vencida = 1
+SELECT 'Facturas Vencidas', CAST(COUNT(*) AS VARCHAR) FROM DM.FACT_Factura WHERE esta_vencida = 1
 
 UNION ALL
-
-SELECT 
-    'Deuda en Mora',
-    FORMAT(SUM(saldo_pendiente), 'C', 'es-CR')
-FROM DM.FACT_Factura
-WHERE esta_vencida = 1
+SELECT 'Deuda en Mora', FORMAT(SUM(saldo_pendiente), 'C', 'es-CR') FROM DM.FACT_Factura WHERE esta_vencida = 1
 
 UNION ALL
-
-SELECT 
-    'Contribuyentes Activos',
-    CAST(COUNT(DISTINCT contribuyente_id) AS VARCHAR)
-FROM DM.FACT_Factura
+SELECT 'Contribuyentes Activos', CAST(COUNT(DISTINCT contribuyente_id) AS VARCHAR) FROM DM.FACT_Factura
 
 UNION ALL
-
-SELECT 
-    'Monto Promedio por Factura',
-    FORMAT(AVG(monto_total), 'C', 'es-CR')
-FROM DM.FACT_Factura;
+SELECT 'Monto Promedio por Factura', FORMAT(AVG(monto_total), 'C', 'es-CR') FROM DM.FACT_Factura;
 GO
 
-PRINT '';
-GO
-
--- =============================================
--- REPORTE 8: TENDENCIA MENSUAL (últimos 6 meses)
--- =============================================
-
-PRINT '📈 REPORTE 8: Tendencia de Recaudación (últimos 6 meses)';
-PRINT '-----------------------------------------------';
-GO
-
+-- Reporte 8: Tendencia mensual (últimos 6 meses)
 SELECT 
     t.anio AS 'Año',
     t.mes_nombre AS 'Mes',
@@ -347,26 +216,4 @@ INNER JOIN DM.DIM_Tiempo t ON f.tiempo_emision_id = t.tiempo_id
 WHERE t.fecha >= DATEADD(MONTH, -6, GETDATE())
 GROUP BY t.anio, t.mes, t.mes_nombre
 ORDER BY t.anio DESC, t.mes DESC;
-GO
-
-PRINT '';
-PRINT '========================================';
-PRINT '✅ CONSULTAS EJEMPLO COMPLETADAS';
-PRINT '========================================';
-PRINT '';
-PRINT 'Reportes generados:';
-PRINT '  1. Recaudación Municipal por Periodo';
-PRINT '  2. Recaudación por Tipo de Rubro';
-PRINT '  3. Estado de Morosidad';
-PRINT '  4. Recaudación por Distrito';
-PRINT '  5. Análisis de Trámites';
-PRINT '  6. Comparativo Año Actual vs Anterior';
-PRINT '  7. Indicadores Clave (KPIs)';
-PRINT '  8. Tendencia Mensual';
-PRINT '';
-PRINT '✅ CORRECCIÓN APLICADA:';
-PRINT '   Las consultas manejan correctamente rubro_id NULL';
-PRINT '';
-PRINT '💡 Puedes modificar estas consultas según necesites';
-PRINT '========================================';
 GO

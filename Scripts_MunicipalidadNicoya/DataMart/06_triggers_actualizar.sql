@@ -1,18 +1,12 @@
 ﻿-- =============================================
 -- TRIGGERS PARA ACTUALIZACIÓN AUTOMÁTICA DEL DATAMART
--- VERSIÓN FINAL - Sin errores de subconsultas
 -- =============================================
 
 USE MunicipalidadNicoya;
 GO
 
-PRINT '====================================';
-PRINT 'CREANDO TRIGGERS DE ACTUALIZACIÓN';
-PRINT '====================================';
-PRINT '';
-
 -- =============================================
--- TRIGGER 1: Actualizar DataMart cuando se INSERTA una factura
+-- TRIGGER 1: Actualizar DataMart cuando se inserta una factura
 -- =============================================
 
 IF OBJECT_ID('dbo.trg_Factura_Insert_ActualizarDM', 'TR') IS NOT NULL
@@ -29,7 +23,7 @@ BEGIN
     DECLARE @FacturaID INT;
     SELECT @FacturaID = factura_id FROM inserted;
 
-    -- Insertar en FACT_Factura las nuevas facturas
+    -- Insertar nuevas facturas en FACT_Factura
     INSERT INTO DM.FACT_Factura (
         factura_id,
         tiempo_emision_id,
@@ -71,7 +65,7 @@ BEGIN
         i.tramite_id,
         ef.estado_id,
         
-        -- MÉTRICAS
+        -- Métricas
         i.monto_base,
         i.recargo,
         i.intereses,
@@ -124,11 +118,8 @@ BEGIN
 END;
 GO
 
-PRINT '✅ Trigger trg_Factura_Insert_ActualizarDM creado';
-PRINT '';
-
 -- =============================================
--- TRIGGER 2: Actualizar DataMart cuando se ACTUALIZA una factura
+-- TRIGGER 2: Actualizar DataMart cuando se actualiza una factura
 -- =============================================
 
 IF OBJECT_ID('dbo.trg_Factura_Update_ActualizarDM', 'TR') IS NOT NULL
@@ -179,11 +170,8 @@ BEGIN
 END;
 GO
 
-PRINT '✅ Trigger trg_Factura_Update_ActualizarDM creado';
-PRINT '';
-
 -- =============================================
--- TRIGGER 3: Actualizar DataMart cuando se INSERTA un pago
+-- TRIGGER 3: Actualizar DataMart cuando se registra un pago
 -- =============================================
 
 IF OBJECT_ID('dbo.trg_Pago_Insert_ActualizarDM', 'TR') IS NOT NULL
@@ -197,7 +185,7 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
-    -- Actualizar los montos pagados y pendientes en FACT_Factura
+    -- Actualizar montos pagados y pendientes en FACT_Factura
     UPDATE f
     SET 
         f.monto_pagado = ISNULL((SELECT SUM(monto_pagado) 
@@ -233,7 +221,7 @@ BEGIN
     INNER JOIN inserted i ON f.factura_id = i.factura_id
     INNER JOIN dbo.Factura fa ON fa.factura_id = i.factura_id;
 
-    -- Si está completamente pagada, actualizar el estado en Factura transaccional
+    -- Si está completamente pagada, actualizar estado en Factura transaccional
     UPDATE fa
     SET fa.estado_factura = 'Pagada'
     FROM dbo.Factura fa
@@ -245,11 +233,8 @@ BEGIN
 END;
 GO
 
-PRINT '✅ Trigger trg_Pago_Insert_ActualizarDM creado';
-PRINT '';
-
 -- =============================================
--- TRIGGER 4: Actualizar dimensión de contribuyentes (FÍSICOS)
+-- TRIGGER 4: Actualizar dimensión de contribuyentes físicos
 -- =============================================
 
 IF OBJECT_ID('dbo.trg_ContribuyenteFisico_ActualizarDM', 'TR') IS NOT NULL
@@ -291,11 +276,8 @@ BEGIN
 END;
 GO
 
-PRINT '✅ Trigger trg_ContribuyenteFisico_ActualizarDM creado';
-PRINT '';
-
 -- =============================================
--- TRIGGER 5: Actualizar dimensión de contribuyentes (JURÍDICOS)
+-- TRIGGER 5: Actualizar dimensión de contribuyentes jurídicos
 -- =============================================
 
 IF OBJECT_ID('dbo.trg_ContribuyenteJuridico_ActualizarDM', 'TR') IS NOT NULL
@@ -336,9 +318,6 @@ BEGIN
                 source.tipo_contribuyente, NULL, 'Nicoya', source.telefono, source.email);
 END;
 GO
-
-PRINT '✅ Trigger trg_ContribuyenteJuridico_ActualizarDM creado';
-PRINT '';
 
 -- =============================================
 -- TRIGGER 6: Actualizar dimensión de inmuebles
@@ -393,9 +372,6 @@ BEGIN
 END;
 GO
 
-PRINT '✅ Trigger trg_Inmueble_ActualizarDM creado';
-PRINT '';
-
 -- =============================================
 -- TRIGGER 7: Actualizar dimensión de trámites
 -- =============================================
@@ -443,18 +419,9 @@ BEGIN
 END;
 GO
 
-PRINT '✅ Trigger trg_Tramite_ActualizarDM creado';
-PRINT '';
-
 -- =============================================
--- VERIFICAR QUE LOS TRIGGERS ESTÁN ACTIVOS
+-- Verificación de triggers activos
 -- =============================================
-
-PRINT '';
-PRINT '====================================';
-PRINT 'VERIFICACIÓN DE TRIGGERS';
-PRINT '====================================';
-PRINT '';
 
 SELECT 
     name AS NombreTrigger,
@@ -464,23 +431,5 @@ SELECT
 FROM sys.triggers
 WHERE name LIKE 'trg_%ActualizarDM'
 ORDER BY name;
-
-PRINT '';
-PRINT '====================================';
-PRINT '✅ TODOS LOS TRIGGERS CREADOS';
-PRINT '====================================';
-PRINT '';
-PRINT 'El DataMart se actualizará automáticamente cuando:';
-PRINT '  ✅ Se inserte/actualice una factura';
-PRINT '  ✅ Se registre un pago';
-PRINT '  ✅ Se modifique un contribuyente';
-PRINT '  ✅ Se modifique un inmueble';
-PRINT '  ✅ Se modifique un trámite';
-PRINT '';
-PRINT '🧪 PRUEBA:';
-PRINT '  1. Inserta una factura desde tu API';
-PRINT '  2. Consulta: SELECT TOP 1 * FROM DM.FACT_Factura ORDER BY fact_factura_id DESC';
-PRINT '  3. Verifica en Swagger: GET /api/reporte/kpis';
-PRINT '';
 
 GO

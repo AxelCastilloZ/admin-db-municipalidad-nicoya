@@ -1,28 +1,12 @@
 ﻿-- =============================================
 -- ETL PARTE 2: POBLACIÓN DE TABLA DE HECHOS
 -- Datamart: Reportes Administrativos
--- VERSIÓN FINAL - Distrito desde CONTRIBUYENTE
 -- =============================================
 
 USE MunicipalidadNicoya;
 GO
 
-PRINT '';
-PRINT '========================================';
-PRINT 'ETL - CARGANDO TABLA DE HECHOS';
-PRINT '========================================';
-PRINT '';
-GO
-
--- =============================================
--- TABLA DE HECHOS: FACT_Factura
--- ✅ Distrito se obtiene del contribuyente, no del inmueble
--- =============================================
-
-PRINT 'Poblando FACT_Factura...';
-PRINT '';
-GO
-
+-- Carga de hechos: FACT_Factura
 INSERT INTO DM.FACT_Factura (
     factura_id,
     tiempo_emision_id,
@@ -47,8 +31,6 @@ SELECT
     f.factura_id,
     dt_emision.tiempo_id,
     dt_venc.tiempo_id,
-    
-    -- ✅ Contribuyente desde el trámite o inmueble
     COALESCE(
         (SELECT contribuyente_id 
          FROM dbo.Tramite t 
@@ -57,107 +39,57 @@ SELECT
          FROM dbo.Contribuyente_Inmueble ci
          WHERE ci.inmueble_id = f.inmueble_id)
     ) AS contribuyente_id,
-    
     f.inmueble_id,
-    
-    -- ✅ Rubro del detalle con mayor monto
     (SELECT TOP 1 df.rubro_id 
      FROM dbo.Detalle_factura df 
      WHERE df.factura_id = f.factura_id 
      ORDER BY (df.monto_unitario * df.cantidad - df.descuento_linea) DESC) AS rubro_id,
-    
     f.tramite_id,
     ef.estado_id,
-    
-    -- MÉTRICAS
     f.monto_base,
     f.recargo,
     f.intereses,
     f.monto_total,
-    
-    -- Cantidad de líneas
     ISNULL((SELECT COUNT(*) 
             FROM dbo.Detalle_factura df 
             WHERE df.factura_id = f.factura_id), 0) AS cantidad_lineas,
-    
-    -- Monto pagado
     ISNULL((SELECT SUM(p.monto_pagado) 
             FROM dbo.Pago p 
             WHERE p.factura_id = f.factura_id), 0) AS monto_pagado,
-    
-    -- Saldo pendiente
     f.monto_total - ISNULL((SELECT SUM(p.monto_pagado) 
                             FROM dbo.Pago p 
                             WHERE p.factura_id = f.factura_id), 0) AS saldo_pendiente,
-    
-    -- Esta vencida
     CASE 
         WHEN f.fecha_vencimiento < CAST(GETDATE() AS DATE) 
              AND f.estado_factura IN ('Pendiente', 'Vencida')
         THEN 1 
         ELSE 0 
     END AS esta_vencida,
-    
-    -- Esta pagada
     CASE 
         WHEN f.estado_factura = 'Pagada' THEN 1 
         ELSE 0 
     END AS esta_pagada,
-    
-    -- Días de mora
     CASE 
         WHEN f.fecha_vencimiento < CAST(GETDATE() AS DATE) 
              AND f.estado_factura IN ('Pendiente', 'Vencida')
         THEN DATEDIFF(DAY, f.fecha_vencimiento, GETDATE())
         ELSE NULL
     END AS dias_mora
-
 FROM dbo.Factura f
 INNER JOIN DM.DIM_Tiempo dt_emision ON CAST(f.fecha_emision AS DATE) = dt_emision.fecha
 INNER JOIN DM.DIM_Tiempo dt_venc ON f.fecha_vencimiento = dt_venc.fecha
 INNER JOIN DM.DIM_Estado_Factura ef ON f.estado_factura = ef.estado;
-
 GO
 
-DECLARE @count_hechos INT;
-SELECT @count_hechos = COUNT(*) FROM DM.FACT_Factura;
-PRINT 'Registros cargados: ' + CAST(@count_hechos AS VARCHAR);
-PRINT '';
-
--- Verificar cuántas facturas tienen rubro_id NULL
+-- Verificación de rubros asignados
 DECLARE @count_sin_rubro INT, @count_con_rubro INT;
 SELECT 
     @count_sin_rubro = COUNT(CASE WHEN rubro_id IS NULL THEN 1 END),
     @count_con_rubro = COUNT(CASE WHEN rubro_id IS NOT NULL THEN 1 END)
 FROM DM.FACT_Factura;
-
-PRINT '✅ Facturas con rubro asignado: ' + CAST(@count_con_rubro AS VARCHAR);
-
-IF @count_sin_rubro > 0
-BEGIN
-    PRINT '⚠️ Advertencia: ' + CAST(@count_sin_rubro AS VARCHAR) + ' facturas sin rubro_id asignado';
-    PRINT '   (Facturas sin detalles)';
-    PRINT '';
-END
-ELSE
-BEGIN
-    PRINT '✅ Todas las facturas tienen rubro asignado';
-    PRINT '';
-END
-
 GO
 
--- =============================================
--- ESTADÍSTICAS
--- =============================================
-
-PRINT '========================================';
-PRINT 'ESTADÍSTICAS DEL DATAMART';
-PRINT '========================================';
-PRINT '';
-GO
-
-PRINT 'Facturas por Estado:';
+-- Estadísticas: Facturas por Estado
 SELECT 
     ef.estado,
     COUNT(*) AS cantidad,
@@ -169,8 +101,7 @@ GROUP BY ef.estado
 ORDER BY cantidad DESC;
 GO
 
-PRINT '';
-PRINT 'Recaudación por Rubro:';
+-- Estadísticas: Recaudación por Rubro
 SELECT 
     r.nombre,
     COUNT(*) AS cantidad,
@@ -184,8 +115,7 @@ GROUP BY r.nombre
 ORDER BY SUM(f.monto_total) DESC;
 GO
 
-PRINT '';
-PRINT 'Recaudación por Distrito (desde CONTRIBUYENTE):';
+-- Estadísticas: Recaudación por Distrito
 SELECT 
     c.distrito AS Distrito,
     COUNT(DISTINCT f.contribuyente_id) AS Contribuyentes,
@@ -200,8 +130,7 @@ GROUP BY c.distrito
 ORDER BY SUM(f.monto_total) DESC;
 GO
 
-PRINT '';
-PRINT 'Facturas Vencidas:';
+-- Estadísticas: Facturas Vencidas
 SELECT 
     COUNT(*) AS total_vencidas,
     FORMAT(SUM(monto_total), 'C', 'es-CR') AS deuda_total,
@@ -211,21 +140,4 @@ FROM DM.FACT_Factura
 WHERE esta_vencida = 1;
 GO
 
-PRINT '';
-PRINT '========================================';
-PRINT 'TABLA DE HECHOS CARGADA EXITOSAMENTE';
-PRINT '========================================';
-PRINT '';
-PRINT '✅ CAMBIO IMPORTANTE:';
-PRINT '   Los reportes por distrito ahora usan DIM_Contribuyente';
-PRINT '   No dependen de que las facturas tengan inmueble_id';
-PRINT '';
-PRINT 'Consulta para reportes por distrito:';
-PRINT 'SELECT c.distrito, COUNT(*), SUM(f.monto_total)';
-PRINT 'FROM DM.FACT_Factura f';
-PRINT 'INNER JOIN DM.DIM_Contribuyente c ON f.contribuyente_id = c.contribuyente_id';
-PRINT 'GROUP BY c.distrito';
-PRINT '';
-PRINT 'Siguiente: Probar endpoints de reportes';
-PRINT '========================================';
-GO
+-- Fin de carga de hechos

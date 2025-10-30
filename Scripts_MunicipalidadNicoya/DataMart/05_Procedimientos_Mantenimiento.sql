@@ -6,13 +6,6 @@
 USE MunicipalidadNicoya;
 GO
 
-PRINT '';
-PRINT '========================================';
-PRINT '⚙️ CREANDO PROCEDIMIENTOS ETL';
-PRINT '========================================';
-PRINT '';
-GO
-
 -- =============================================
 -- SP 1: Actualizar Dimensión Contribuyente
 -- =============================================
@@ -77,17 +70,11 @@ BEGIN
         
         COMMIT TRANSACTION;
         
-        PRINT '✓ DIM_Contribuyente actualizada:';
-        PRINT '  - Nuevos: ' + CAST(@registros_nuevos AS VARCHAR);
-        PRINT '  - Actualizados: ' + CAST(@registros_actualizados AS VARCHAR);
-        
     END TRY
     BEGIN CATCH
         IF @@TRANCOUNT > 0
             ROLLBACK TRANSACTION;
         
-        PRINT '❌ Error al actualizar DIM_Contribuyente:';
-        PRINT ERROR_MESSAGE();
         THROW;
     END CATCH
 END;
@@ -157,17 +144,11 @@ BEGIN
         
         COMMIT TRANSACTION;
         
-        PRINT '✓ DIM_Inmueble actualizada:';
-        PRINT '  - Nuevos: ' + CAST(@registros_nuevos AS VARCHAR);
-        PRINT '  - Actualizados: ' + CAST(@registros_actualizados AS VARCHAR);
-        
     END TRY
     BEGIN CATCH
         IF @@TRANCOUNT > 0
             ROLLBACK TRANSACTION;
         
-        PRINT '❌ Error al actualizar DIM_Inmueble:';
-        PRINT ERROR_MESSAGE();
         THROW;
     END CATCH
 END;
@@ -217,7 +198,7 @@ BEGIN
         
         SET @registros_nuevos = @@ROWCOUNT;
         
-        -- Actualizar trámites existentes (estado puede cambiar)
+        -- Actualizar trámites existentes
         UPDATE dt
         SET 
             dt.estado_tramite = t.estado_actual,
@@ -234,24 +215,18 @@ BEGIN
         
         COMMIT TRANSACTION;
         
-        PRINT '✓ DIM_Tramite actualizada:';
-        PRINT '  - Nuevos: ' + CAST(@registros_nuevos AS VARCHAR);
-        PRINT '  - Actualizados: ' + CAST(@registros_actualizados AS VARCHAR);
-        
     END TRY
     BEGIN CATCH
         IF @@TRANCOUNT > 0
             ROLLBACK TRANSACTION;
         
-        PRINT '❌ Error al actualizar DIM_Tramite:';
-        PRINT ERROR_MESSAGE();
         THROW;
     END CATCH
 END;
 GO
 
 -- =============================================
--- SP 4: Actualizar Tabla de Hechos (Incremental)
+-- SP 4: Actualizar Tabla de Hechos
 -- =============================================
 
 CREATE OR ALTER PROCEDURE DM.sp_Actualizar_FACT_Factura
@@ -349,7 +324,7 @@ BEGIN
         
         SET @registros_nuevos = @@ROWCOUNT;
         
-        -- Actualizar facturas existentes (estados y pagos pueden cambiar)
+        -- Actualizar facturas existentes
         UPDATE ff
         SET 
             ff.estado_factura_id = ef.estado_id,
@@ -389,24 +364,18 @@ BEGIN
         
         COMMIT TRANSACTION;
         
-        PRINT '✓ FACT_Factura actualizada:';
-        PRINT '  - Nuevas: ' + CAST(@registros_nuevos AS VARCHAR);
-        PRINT '  - Actualizadas: ' + CAST(@registros_actualizados AS VARCHAR);
-        
     END TRY
     BEGIN CATCH
         IF @@TRANCOUNT > 0
             ROLLBACK TRANSACTION;
         
-        PRINT '❌ Error al actualizar FACT_Factura:';
-        PRINT ERROR_MESSAGE();
         THROW;
     END CATCH
 END;
 GO
 
 -- =============================================
--- SP 5: Actualizar TODO el Datamart (Master)
+-- SP 5: Procedimiento Master - Actualiza todo el Datamart
 -- =============================================
 
 CREATE OR ALTER PROCEDURE DM.sp_Actualizar_Datamart_Completo
@@ -417,63 +386,20 @@ BEGIN
     DECLARE @fecha_inicio DATETIME = GETDATE();
     DECLARE @fecha_fin DATETIME;
     
-    PRINT '';
-    PRINT '========================================';
-    PRINT '🔄 ACTUALIZANDO DATAMART COMPLETO';
-    PRINT '========================================';
-    PRINT '';
-    PRINT 'Fecha Inicio: ' + CONVERT(VARCHAR, @fecha_inicio, 120);
-    PRINT '';
-    
     BEGIN TRY
-        -- 1. Actualizar dimensiones
-        PRINT '📋 Paso 1: Actualizando Dimensiones...';
+        -- Actualizar dimensiones
         EXEC DM.sp_Actualizar_DIM_Contribuyente;
         EXEC DM.sp_Actualizar_DIM_Inmueble;
         EXEC DM.sp_Actualizar_DIM_Tramite;
-        PRINT '';
         
-        -- 2. Actualizar tabla de hechos
-        PRINT '📊 Paso 2: Actualizando Tabla de Hechos...';
+        -- Actualizar tabla de hechos
         EXEC DM.sp_Actualizar_FACT_Factura;
-        PRINT '';
         
         SET @fecha_fin = GETDATE();
         
-        PRINT '========================================';
-        PRINT '✅ DATAMART ACTUALIZADO EXITOSAMENTE';
-        PRINT '========================================';
-        PRINT '';
-        PRINT 'Fecha Fin: ' + CONVERT(VARCHAR, @fecha_fin, 120);
-        PRINT 'Tiempo Total: ' + CAST(DATEDIFF(SECOND, @fecha_inicio, @fecha_fin) AS VARCHAR) + ' segundos';
-        PRINT '';
-        
     END TRY
     BEGIN CATCH
-        PRINT '';
-        PRINT '========================================';
-        PRINT '❌ ERROR AL ACTUALIZAR DATAMART';
-        PRINT '========================================';
-        PRINT ERROR_MESSAGE();
-        PRINT '';
         THROW;
     END CATCH
 END;
-GO
-
-PRINT '';
-PRINT '========================================';
-PRINT '✅ PROCEDIMIENTOS ETL CREADOS';
-PRINT '========================================';
-PRINT '';
-PRINT 'Procedimientos disponibles:';
-PRINT '  • DM.sp_Actualizar_DIM_Contribuyente';
-PRINT '  • DM.sp_Actualizar_DIM_Inmueble';
-PRINT '  • DM.sp_Actualizar_DIM_Tramite';
-PRINT '  • DM.sp_Actualizar_FACT_Factura';
-PRINT '  • DM.sp_Actualizar_Datamart_Completo';
-PRINT '';
-PRINT 'Para actualizar el Datamart ejecuta:';
-PRINT '  EXEC DM.sp_Actualizar_Datamart_Completo';
-PRINT '========================================';
 GO
