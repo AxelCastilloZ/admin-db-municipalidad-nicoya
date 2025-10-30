@@ -1,6 +1,3 @@
-
-
-
 -- =============================================
 -- SCRIPT: CREACIÓN DE USUARIOS Y ROLES
 -- Base de Datos: MunicipalidadNicoya
@@ -168,6 +165,31 @@ PRINT '  Permisos de creación de objetos otorgados';
 PRINT '';
 
 -- =============================================
+-- PASO 5.1: ASIGNAR PERMISOS EN ESQUEMA DM (DATA MART)
+-- =============================================
+
+PRINT ' PASO 5.1: Asignando permisos en esquema DM (Data Mart)...';
+PRINT '';
+
+-- Verificar si existe el esquema DM
+IF EXISTS (SELECT 1 FROM sys.schemas WHERE name = 'DM')
+BEGIN
+    -- Permisos completos para AUDITOR en esquema DM
+    GRANT SELECT, INSERT, UPDATE, DELETE ON SCHEMA::DM TO auditor;
+    PRINT '  Permisos CRUD en schema DM otorgados a auditor';
+    
+    -- Permisos de lectura para FUNCIONARIO en esquema DM
+    GRANT SELECT ON SCHEMA::DM TO funcionario_municipal;
+    PRINT '  Permiso SELECT en schema DM otorgado a funcionario_municipal';
+END
+ELSE
+BEGIN
+    PRINT '  ADVERTENCIA: Esquema DM no existe aún. Ejecutar permisos cuando se cree.';
+END
+
+PRINT '';
+
+-- =============================================
 -- PASO 6: BLOQUEAR ACCESO A TABLAS DE AUDITORÍA
 -- (DENY explícito para funcionario_municipal)
 -- =============================================
@@ -258,4 +280,19 @@ ALTER ROLE funcionario_municipal ADD MEMBER usr_funcionario;
 PRINT '  usr_funcionario asignado al rol: funcionario_municipal';
 
 PRINT '';
-
+PRINT '========================================';
+PRINT ' CONFIGURACIÓN COMPLETADA EXITOSAMENTE';
+PRINT '========================================';
+PRINT '';
+PRINT ' RESUMEN DE USUARIOS CREADOS:';
+PRINT '   - usr_auditor (Contraseña: Auditor123)';
+PRINT '     Rol: auditor - Acceso total + auditorías';
+PRINT '';
+PRINT '   - usr_funcionario (Contraseña: Funcionario123)';
+PRINT '     Rol: funcionario_municipal - Acceso operativo sin auditorías';
+PRINT '';
+PRINT ' ESQUEMAS CON PERMISOS:';
+PRINT '   - dbo (ambos roles)';
+PRINT '   - DM (ambos roles - Data Mart)';
+PRINT '';
+GO
