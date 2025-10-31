@@ -244,7 +244,7 @@ BEGIN
 END
 GO
 
-ALTER PROCEDURE dbo.sp_Auditoria_Tramite_PorFecha
+CREATE  PROCEDURE dbo.sp_Auditoria_Tramite_PorFecha
     @fecha_inicio DATETIME,
     @fecha_fin DATETIME
 AS
