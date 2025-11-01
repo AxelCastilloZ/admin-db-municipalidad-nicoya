@@ -5,10 +5,6 @@
 
 
 
--- MÓDULO: COBROS Y PAGOS
--- Script: Creación de Tablas
--- Descripción: Tablas para gestión de facturas, pagos y rubros
--- =============================================
 
 
 USE MunicipalidadNicoya;
@@ -19,11 +15,16 @@ GO
 -- =============================================
 
 --  FK desde Servicio_Inmueble 
-IF EXISTS (SELECT * FROM sys.foreign_keys WHERE name = 'FK_ServicioInmueble_Rubro')
-    ALTER TABLE dbo.Servicio_Inmueble DROP CONSTRAINT FK_ServicioInmueble_Rubro;
+IF OBJECT_ID('dbo.Servicio_Inmueble', 'U') IS NOT NULL
+BEGIN
+    IF EXISTS (SELECT * FROM sys.foreign_keys WHERE name = 'FK_ServicioInmueble_Rubro')
+        ALTER TABLE dbo.Servicio_Inmueble DROP CONSTRAINT FK_ServicioInmueble_Rubro;
 
-IF EXISTS (SELECT * FROM sys.foreign_keys WHERE name = 'FK_ServicioInmueble_Inmueble')
-    ALTER TABLE dbo.Servicio_Inmueble DROP CONSTRAINT FK_ServicioInmueble_Inmueble;
+    IF EXISTS (SELECT * FROM sys.foreign_keys WHERE name = 'FK_ServicioInmueble_Inmueble')
+        ALTER TABLE dbo.Servicio_Inmueble DROP CONSTRAINT FK_ServicioInmueble_Inmueble;
+END
+GO
+
 
 -- FK desde Pago
 IF EXISTS (SELECT * FROM sys.foreign_keys WHERE name = 'FK_Pago_Factura')
@@ -100,8 +101,7 @@ GO
 PRINT ' Tablas eliminadas';
 GO
 
-PRINT ' Tablas eliminadas';
-GO
+
 
 -- =============================================
 -- TABLA CATÁLOGO: Rubro
@@ -150,7 +150,7 @@ VALUES
 ('Otros Servicios', 'Servicios varios municipales', NULL, 0, 1, 0, 0, 0, 0);
 GO
 
-PRINT '✓ Tabla Rubro creada con datos iniciales (incluye tarifa_base)';
+PRINT ' Tabla Rubro creada con datos iniciales (incluye tarifa_base)';
 GO
 
 -- =============================================
@@ -244,7 +244,7 @@ GO
 -- TABLA: Pago
 -- =============================================
 CREATE TABLE dbo.Pago
-(
+(                                                                                                                                                            
     pago_id INT IDENTITY(1,1) NOT NULL,
     monto_pagado DECIMAL(12,2) NOT NULL,
     fecha_pago DATE NOT NULL DEFAULT CAST(GETDATE() AS DATE),

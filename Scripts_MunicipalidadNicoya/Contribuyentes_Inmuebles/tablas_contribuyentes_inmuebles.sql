@@ -5,7 +5,42 @@
 USE MunicipalidadNicoya;
 GO
 
-PRINT '';
+
+-- =============================================
+-- ELIMINAR SERVICIO_INMUEBLE Y SUS DEPENDENCIAS
+-- =============================================
+
+
+-- 1. Eliminar índices 
+IF EXISTS (SELECT * FROM sys.indexes WHERE name = 'IDX_ServicioInmueble_Inmueble_Activo' AND object_id = OBJECT_ID('dbo.Servicio_Inmueble'))
+    DROP INDEX IDX_ServicioInmueble_Inmueble_Activo ON dbo.Servicio_Inmueble;
+
+IF EXISTS (SELECT * FROM sys.indexes WHERE name = 'IDX_ServicioInmueble_Rubro_Activo' AND object_id = OBJECT_ID('dbo.Servicio_Inmueble'))
+    DROP INDEX IDX_ServicioInmueble_Rubro_Activo ON dbo.Servicio_Inmueble;
+
+IF EXISTS (SELECT * FROM sys.indexes WHERE name = 'IDX_ServicioInmueble_FechaInicio' AND object_id = OBJECT_ID('dbo.Servicio_Inmueble'))
+    DROP INDEX IDX_ServicioInmueble_FechaInicio ON dbo.Servicio_Inmueble;
+
+-- 2. Eliminar Foreign Keys 
+IF EXISTS (SELECT * FROM sys.foreign_keys WHERE name = 'FK_ServicioInmueble_Rubro')
+    ALTER TABLE dbo.Servicio_Inmueble DROP CONSTRAINT FK_ServicioInmueble_Rubro;
+
+IF EXISTS (SELECT * FROM sys.foreign_keys WHERE name = 'FK_ServicioInmueble_Inmueble')
+    ALTER TABLE dbo.Servicio_Inmueble DROP CONSTRAINT FK_ServicioInmueble_Inmueble;
+
+-- 3. Eliminar restricción UNIQUE 
+IF EXISTS (SELECT * FROM sys.indexes WHERE name = 'UQ_ServicioInmueble_InmuebleRubro' AND object_id = OBJECT_ID('dbo.Servicio_Inmueble'))
+    ALTER TABLE dbo.Servicio_Inmueble DROP CONSTRAINT UQ_ServicioInmueble_InmuebleRubro;
+
+-- 4. Eliminar tabla
+IF OBJECT_ID('dbo.Servicio_Inmueble', 'U') IS NOT NULL
+    DROP TABLE dbo.Servicio_Inmueble;
+
+PRINT ' Servicio_Inmueble eliminado completamente';
+
+
+
+
 PRINT '========================================';
 PRINT 'MÓDULO: CONTRIBUYENTES E INMUEBLES';
 GO
@@ -65,7 +100,7 @@ IF EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_Catastro_Inmueble')
     DROP INDEX IX_Catastro_Inmueble ON dbo.Catastro;
 GO
 
-PRINT '✓ Restricciones FK e índices eliminados';
+PRINT ' Restricciones FK e índices eliminados';
 GO
 
 -- =============================================
@@ -86,52 +121,6 @@ GO
 PRINT ' Tablas eliminadas';
 GO
 
-
-
--- =============================================
--- ELIMINAR TABLAS ADICIONALES
--- =============================================
-IF OBJECT_ID('dbo.Servicio_Inmueble', 'U') IS NOT NULL
-    DROP TABLE dbo.Servicio_Inmueble;
-Go
-
-IF OBJECT_ID('dbo.ObservacionInmueble', 'U') IS NOT NULL
-    DROP TABLE dbo.ObservacionInmueble;
-GO
-
-IF OBJECT_ID('dbo.Colindancias', 'U') IS NOT NULL
-    DROP TABLE dbo.Colindancias;
-GO
-
-IF OBJECT_ID('dbo.Catastro', 'U') IS NOT NULL
-    DROP TABLE dbo.Catastro;
-GO
-
-
-
-IF OBJECT_ID('dbo.Contribuyente_Inmueble', 'U') IS NOT NULL
-    DROP TABLE dbo.Contribuyente_Inmueble;
-GO
-
-IF OBJECT_ID('dbo.Inmueble', 'U') IS NOT NULL
-    DROP TABLE dbo.Inmueble;
-GO
-
-IF OBJECT_ID('dbo.Contribuyente_juridico', 'U') IS NOT NULL
-    DROP TABLE dbo.Contribuyente_juridico;
-GO
-
-IF OBJECT_ID('dbo.Contribuyente_fisico', 'U') IS NOT NULL
-    DROP TABLE dbo.Contribuyente_fisico;
-GO
-
-IF OBJECT_ID('dbo.Contribuyente', 'U') IS NOT NULL
-    DROP TABLE dbo.Contribuyente;
-GO
-
-IF OBJECT_ID('dbo.TipoUsoInmueble', 'U') IS NOT NULL
-    DROP TABLE dbo.TipoUsoInmueble;
-GO
 
 -- =============================================
 -- TABLA: Contribuyente
@@ -387,189 +376,6 @@ GO
 
 
 
-
-
--- =============================================
--- TABLA: Servicio_Inmueble
--- Descripción: Configuración permanente de servicios por inmueble
--- Propósito: Define QUÉ servicios tiene contratados cada inmueble
---            para la generación automática de facturas trimestrales
--- =============================================
-
-USE MunicipalidadNicoya;
-GO
-
-PRINT '';
-PRINT '========================================';
-PRINT ' CREACIÓN DE TABLA: Servicio_Inmueble';
-PRINT '========================================';
-PRINT '';
-
-
--- =============================================
--- 2. CREAR TABLA SERVICIO_INMUEBLE
--- =============================================
-
-PRINT ' Creando tabla Servicio_Inmueble...';
-GO
-
-CREATE TABLE dbo.Servicio_Inmueble (
-    -- Identificador único
-    servicio_inmueble_id INT IDENTITY(1,1) NOT NULL,
-    
-    -- Relaciones
-    inmueble_id INT NOT NULL,
-    rubro_id INT NOT NULL,
-    
-    -- Estado del servicio
-    activo BIT NOT NULL DEFAULT 1,
-    
-    -- Control de fechas
-    fecha_inicio DATE NOT NULL DEFAULT GETDATE(),
-    fecha_fin DATE NULL,
-    
-    -- Tarifa personalizada 
-    tarifa_personalizada DECIMAL(12,2) NULL,
-    
-    -- Observaciones
-    observaciones VARCHAR(300) NULL,
-    
-    -- =============================================
-    -- CONSTRAINT: Clave primaria
-    -- =============================================
-    CONSTRAINT PK_ServicioInmueble 
-        PRIMARY KEY CLUSTERED (servicio_inmueble_id),
-    
-    -- =============================================
-    -- CONSTRAINT: Claves foráneas (relaciones)
-    -- =============================================
-    
-    -- Relación con Inmueble
-    CONSTRAINT FK_ServicioInmueble_Inmueble 
-        FOREIGN KEY (inmueble_id) 
-        REFERENCES dbo.Inmueble(inmueble_id)
-        ON DELETE CASCADE,  -- Si eliminas inmueble, eliminas sus servicios
-    
-    -- Relación con Rubro 
-    CONSTRAINT FK_ServicioInmueble_Rubro 
-        FOREIGN KEY (rubro_id) 
-        REFERENCES dbo.Rubro(rubro_id)
-        ON DELETE NO ACTION,  -- No permitir eliminar rubro si tiene servicios activos
-    
-    -- =============================================
-    -- CONSTRAINT: Un inmueble NO puede tener el mismo servicio duplicado
-    -- =============================================
-    CONSTRAINT UQ_ServicioInmueble_InmuebleRubro 
-        UNIQUE (inmueble_id, rubro_id),
-    
-    -- =============================================
-    -- CONSTRAINT: Validación de fechas
-    -- =============================================
-    CONSTRAINT CHK_ServicioInmueble_FechaFin 
-        CHECK (fecha_fin IS NULL OR fecha_fin >= fecha_inicio),
-    
-    -- =============================================
-    -- CONSTRAINT: Tarifa personalizada no puede ser negativa
-    -- =============================================
-    CONSTRAINT CHK_ServicioInmueble_TarifaPersonalizada 
-        CHECK (tarifa_personalizada IS NULL OR tarifa_personalizada >= 0)
-);
-
-PRINT '    Tabla creada exitosamente';
-PRINT '';
-
--- =============================================
--- 3. CREAR ÍNDICES PARA OPTIMIZACIÓN
--- =============================================
-
-PRINT ' Creando índices de optimización...';
-GO
-
--- Índice para buscar servicios activos de un inmueble
-CREATE NONCLUSTERED INDEX IDX_ServicioInmueble_Inmueble_Activo
-    ON dbo.Servicio_Inmueble(inmueble_id, activo)
-    INCLUDE (rubro_id, tarifa_personalizada)
-    WHERE activo = 1;
-
-PRINT '    IDX_ServicioInmueble_Inmueble_Activo creado';
-
--- Índice para buscar qué inmuebles tienen un servicio específico
-CREATE NONCLUSTERED INDEX IDX_ServicioInmueble_Rubro_Activo
-    ON dbo.Servicio_Inmueble(rubro_id, activo)
-    INCLUDE (inmueble_id)
-    WHERE activo = 1;
-
-PRINT '    IDX_ServicioInmueble_Rubro_Activo creado';
-
--- Índice para consultas por fecha
-CREATE NONCLUSTERED INDEX IDX_ServicioInmueble_FechaInicio
-    ON dbo.Servicio_Inmueble(fecha_inicio)
-    INCLUDE (inmueble_id, rubro_id, activo);
-
-PRINT '   IDX_ServicioInmueble_FechaInicio creado';
-
-
-
-
-
-
-PRINT '========================================';
-PRINT ' VERIFICACIÓN';
-PRINT '========================================';
-PRINT '';
-
--- Verificar que la tabla existe
-IF OBJECT_ID('dbo.Servicio_Inmueble', 'U') IS NOT NULL
-    PRINT '✓ Tabla Servicio_Inmueble creada correctamente';
-ELSE
-    PRINT '✗ ERROR: La tabla NO se creó';
-
--- Verificar relaciones 
-IF EXISTS (
-    SELECT 1 FROM sys.foreign_keys 
-    WHERE name = 'FK_ServicioInmueble_Inmueble'
-)
-    PRINT '✓ FK con Inmueble creada correctamente';
-ELSE
-    PRINT '✗ ERROR: FK con Inmueble NO existe';
-
-IF EXISTS (
-    SELECT 1 FROM sys.foreign_keys 
-    WHERE name = 'FK_ServicioInmueble_Rubro'
-)
-    PRINT '✓ FK con Rubro creada correctamente';
-ELSE
-    PRINT '✗ ERROR: FK con Rubro NO existe';
-
--- Verificar restricción UNIQUE
-IF EXISTS (
-    SELECT 1 FROM sys.indexes 
-    WHERE name = 'UQ_ServicioInmueble_InmuebleRubro'
-)
-    PRINT '✓ Restricción UNIQUE creada correctamente';
-ELSE
-    PRINT '✗ ERROR: Restricción UNIQUE NO existe';
-
--- Contar índices
-DECLARE @cant_indices INT;
-SELECT @cant_indices = COUNT(*) 
-FROM sys.indexes 
-WHERE object_id = OBJECT_ID('dbo.Servicio_Inmueble')
-  AND name IS NOT NULL;
-
-PRINT ' Total de índices creados: ' + CAST(@cant_indices AS VARCHAR);
-
-PRINT '';
-PRINT '========================================';
-PRINT 'TABLA SERVICIO_INMUEBLE LISTA';
-PRINT '========================================';
-PRINT '';
-PRINT 'Próximos pasos:';
-PRINT '  1. Crear SPs para gestionar servicios';
-PRINT '  2. Crear SP de generación automática de facturas';
-PRINT '  3. Configurar Job trimestral';
-PRINT '';
-GO
 
 
 
