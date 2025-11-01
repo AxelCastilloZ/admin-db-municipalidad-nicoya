@@ -1,8 +1,7 @@
 ﻿-- =============================================
 -- MÓDULO: TRÁMITES Y PERMISOS
 -- Script: Stored Procedures
--- Descripción: Procedimientos almacenados para gestión de trámites
--- =============================================
+
 
 USE MunicipalidadNicoya;
 GO
@@ -122,7 +121,7 @@ CREATE PROCEDURE sp_Tramite_Insertar
     @observaciones   VARCHAR(255) = NULL,
     @tipo_tramite_id INT,
     @contribuyente_id INT,
-    @inmueble_id     INT = NULL,                -- <- AHORA OPCIONAL
+    @inmueble_id     INT = NULL,                
     @estado_actual   VARCHAR(20) = 'En Proceso'
 AS
 BEGIN
@@ -174,11 +173,11 @@ GO
 CREATE PROCEDURE sp_Tramite_Actualizar
     @tramite_id       INT,
     @fecha_ingreso    DATE,
-    @fecha_resolucion DATE = NULL,          -- <- PERMITE NULL
-    @observaciones    VARCHAR(255) = NULL,  -- <- PERMITE NULL
+    @fecha_resolucion DATE = NULL,         
+    @observaciones    VARCHAR(255) = NULL,  
     @tipo_tramite_id  INT,
     @contribuyente_id INT,
-    @inmueble_id      INT = NULL            -- <- AHORA OPCIONAL
+    @inmueble_id      INT = NULL            
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -866,7 +865,7 @@ DELETE FROM Requisito;
 DELETE FROM Tipo_Tramite;
 GO
 
-PRINT '✓ Datos previos de trámites eliminados';
+PRINT ' Datos previos de trámites eliminados';
 GO
 
 -- =============================================
@@ -884,19 +883,19 @@ SELECT @total_inmuebles = COUNT(*) FROM Inmueble;
 
 IF @total_contribuyentes = 0
 BEGIN
-    PRINT '⚠ ADVERTENCIA: No hay contribuyentes registrados.';
+    PRINT ' ADVERTENCIA: No hay contribuyentes registrados.';
     PRINT '  Ejecute primero el script de prueba de Contribuyentes e Inmuebles.';
     RETURN;
 END
 
 IF @total_inmuebles = 0
 BEGIN
-    PRINT '⚠ ADVERTENCIA: No hay inmuebles registrados.';
+    PRINT ' ADVERTENCIA: No hay inmuebles registrados.';
     PRINT '  Ejecute primero el script de prueba de Contribuyentes e Inmuebles.';
     RETURN;
 END
 
-PRINT '✓ Datos base verificados:';
+PRINT ' Datos base verificados:';
 PRINT '  - Contribuyentes: ' + CAST(@total_contribuyentes AS VARCHAR(10));
 PRINT '  - Inmuebles: ' + CAST(@total_inmuebles AS VARCHAR(10));
 GO
@@ -923,7 +922,7 @@ INSERT INTO dbo.Tipo_Tramite (nombre_tipo) VALUES
 ('Cambio de Uso de Propiedad'),
 ('Movimiento de Tierras');
 
-PRINT '✓ Tipos de trámite insertados: ' + CAST(@@ROWCOUNT AS VARCHAR(10));
+PRINT ' Tipos de trámite insertados: ' + CAST(@@ROWCOUNT AS VARCHAR(10));
 GO
 
 PRINT '';
@@ -975,7 +974,7 @@ FROM (VALUES
 JOIN Tipo_Tramite tt ON tt.nombre_tipo = V.tipo_nombre
 JOIN Requisito r ON r.nombre = V.req_nombre;
 
-PRINT '✓ Relaciones insertadas: ' + CAST(@@ROWCOUNT AS VARCHAR(10));
+PRINT ' Relaciones insertadas: ' + CAST(@@ROWCOUNT AS VARCHAR(10));
 GO
 
 -- =============================================
@@ -1017,7 +1016,7 @@ SELECT @tipo_cambio_uso = tipo_tramite_id FROM Tipo_Tramite WHERE nombre_tipo = 
 -- Validar que se obtuvieron todos los IDs necesarios
 IF @tipo_permiso_construccion IS NULL OR @tipo_uso_suelo IS NULL OR @tipo_patente IS NULL OR @tipo_cambio_uso IS NULL
 BEGIN
-    PRINT '❌ ERROR: No se pudieron obtener los IDs de tipos de trámite';
+    PRINT ' ERROR: No se pudieron obtener los IDs de tipos de trámite';
     PRINT 'Permiso Construcción: ' + ISNULL(CAST(@tipo_permiso_construccion AS VARCHAR), 'NULL');
     PRINT 'Uso Suelo: ' + ISNULL(CAST(@tipo_uso_suelo AS VARCHAR), 'NULL');
     PRINT 'Patente: ' + ISNULL(CAST(@tipo_patente AS VARCHAR), 'NULL');
@@ -1096,7 +1095,7 @@ EXEC sp_Tramite_Insertar
 
 SELECT TOP 1 @tramite5_id = tramite_id FROM Tramite ORDER BY tramite_id DESC;
 
-PRINT '✓ Trámites de prueba insertados';
+PRINT ' Trámites de prueba insertados';
 PRINT '  - Trámite 1 (En Proceso): ' + CAST(@tramite1_id AS VARCHAR(10));
 PRINT '  - Trámite 2 (Aprobado): ' + CAST(@tramite2_id AS VARCHAR(10));
 PRINT '  - Trámite 3 (En Proceso): ' + CAST(@tramite3_id AS VARCHAR(10));
@@ -1137,6 +1136,6 @@ GO
 
 PRINT '';
 PRINT '========================================';
-PRINT '✓ PRUEBAS BÁSICAS COMPLETADAS';
+PRINT ' PRUEBAS BÁSICAS COMPLETADAS';
 PRINT '========================================';
 GO

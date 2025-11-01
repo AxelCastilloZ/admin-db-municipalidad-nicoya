@@ -27,5 +27,5 @@ BEGIN
 END;
 GO
 
-PRINT '✓ Trigger trg_factura_actualiza_tramite_finalizado creado exitosamente';
+PRINT ' Trigger trg_factura_actualiza_tramite_finalizado creado exitosamente';
 GO

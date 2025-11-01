@@ -7,7 +7,7 @@
 USE MunicipalidadNicoya;
 GO
 
-PRINT '';
+
 PRINT '========================================';
 PRINT 'MÓDULO: TRÁMITES Y PERMISOS';
 PRINT '========================================';
@@ -38,7 +38,7 @@ IF EXISTS (SELECT * FROM sys.foreign_keys WHERE name = 'FK_TipoTramiteRequisito_
     ALTER TABLE dbo.Tipo_Tramite_Requisito DROP CONSTRAINT FK_TipoTramiteRequisito_Requisito;
 GO
 
-PRINT '✓ Foreign keys eliminadas';
+PRINT ' Foreign keys eliminadas';
 GO
 
 -- =============================================
@@ -51,7 +51,7 @@ DROP TABLE IF EXISTS dbo.Tramite;
 DROP TABLE IF EXISTS dbo.Tipo_Tramite;
 GO
 
-PRINT '✓ Tablas eliminadas';
+PRINT 'Tablas eliminadas';
 GO
 -- 3. Ahora sí crear las tablas desde cero
 
@@ -67,7 +67,7 @@ CREATE TABLE dbo.Tipo_Tramite
 );
 GO
 
-PRINT '✓ Tabla Tipo_Tramite creada';
+PRINT ' Tabla Tipo_Tramite creada';
 GO
 
 -- =============================================
@@ -111,7 +111,7 @@ ADD CONSTRAINT DF_Tramite_EstadoActual
     DEFAULT ('En Proceso') FOR estado_actual;
 GO
 
-PRINT '✓ Tabla Tramite creada';
+PRINT ' Tabla Tramite creada';
 GO
 
 -- =============================================
@@ -129,7 +129,7 @@ CREATE TABLE Requisito
 )
 GO
 
-PRINT '✓ Tabla Requisito creada';
+PRINT 'Tabla Requisito creada';
 GO
 
 -- =============================================
@@ -152,12 +152,11 @@ CREATE TABLE Tipo_Tramite_Requisito
 )
 GO
 
-PRINT '✓ Tabla Tipo_Tramite_Requisito creada';
+PRINT ' Tabla Tipo_Tramite_Requisito creada';
 GO
-
 PRINT '';
 PRINT '========================================';
-PRINT '✓ MÓDULO TRÁMITES Y PERMISOS';
+PRINT ' MÓDULO TRÁMITES Y PERMISOS';
 PRINT '  Todas las tablas creadas exitosamente';
 PRINT '========================================';
 GO
