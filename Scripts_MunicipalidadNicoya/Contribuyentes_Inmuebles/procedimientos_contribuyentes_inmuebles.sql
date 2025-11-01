@@ -1,8 +1,6 @@
 ﻿-- =============================================
 -- MÓDULO: CONTRIBUYENTES E INMUEBLES
 -- Script: Stored Procedures
--- Descripción: Procedimientos almacenados para gestión de contribuyentes e inmuebles
--- =============================================
 
 USE MunicipalidadNicoya;
 GO
@@ -78,7 +76,7 @@ GO
 CREATE PROCEDURE sp_Contribuyente_InsertarJuridico
     @cedula_juridica VARCHAR(50),
     @nombre_empresa VARCHAR(50),
-    @representante_legal_id INT,  -- Este es el contribuyente_id del físico
+    @representante_legal_id INT, 
     @telefono VARCHAR(20) = NULL,
     @email VARCHAR(100) = NULL,
     @direccion VARCHAR(255) = NULL
@@ -97,7 +95,6 @@ BEGIN
             THROW 50001, 'La cédula jurídica ya está registrada', 1;
         END
         
-        -- CORRECCIÓN: Buscar el contribuyentes_fisicos_id a partir del contribuyente_id
         SELECT @contribuyentes_fisicos_id = contribuyentes_fisicos_id
         FROM Contribuyente_fisico
         WHERE contribuyente_id = @representante_legal_id;
@@ -235,8 +232,6 @@ BEGIN
 END;
 GO
 
-PRINT '✓ SPs modificados con datos del representante legal';
-GO
 
 -- =============================================
 -- SP: Actualizar Contribuyente Físico
@@ -463,7 +458,7 @@ BEGIN
             RETURN;
         END
         
-        -- ✅ VALIDACIÓN 1: Verificar si es representante legal de alguna empresa
+        -- VALIDACIÓN 1: Verificar si es representante legal de alguna empresa
         IF EXISTS (
             SELECT 1 
             FROM Contribuyente_juridico cj
@@ -810,7 +805,7 @@ BEGIN
 END;
 GO
 
-PRINT '✓ SP sp_Catastro_Actualizar corregido con retorno de resultado';
+PRINT ' SP sp_Catastro_Actualizar corregido con retorno de resultado';
 GO
 
 -- SP: Eliminar Inmueble
@@ -1657,863 +1652,6 @@ GO
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
--- =============================================
--- PASO 2: STORED PROCEDURES - GESTIÓN DE SERVICIOS INMUEBLES
--- Descripción: SPs para agregar, desactivar, listar y reactivar
---              servicios de inmuebles
--- =============================================
-
-USE MunicipalidadNicoya;
-GO
-
-PRINT '';
-PRINT '========================================';
-PRINT '📦 PASO 2: STORED PROCEDURES';
-PRINT '   Gestión de Servicio_Inmueble';
-PRINT '========================================';
-PRINT '';
-
--- =============================================
--- SP1: sp_agregar_servicio_inmueble
--- Descripción: Asocia uno o varios servicios a un inmueble
--- =============================================
-
-IF OBJECT_ID('dbo.sp_agregar_servicio_inmueble', 'P') IS NOT NULL
-    DROP PROCEDURE dbo.sp_agregar_servicio_inmueble;
-GO
-
-CREATE PROCEDURE dbo.sp_agregar_servicio_inmueble
-    @inmueble_id INT,
-    @rubro_id INT,
-    @tarifa_personalizada DECIMAL(12,2) = NULL,
-    @observaciones VARCHAR(300) = NULL
-AS
-BEGIN
-    SET NOCOUNT ON;
-    
-    BEGIN TRY
-        BEGIN TRANSACTION;
-        
-        -- =============================================
-        -- VALIDACIONES
-        -- =============================================
-        
-        -- 1. Validar que el inmueble existe
-        IF NOT EXISTS (SELECT 1 FROM dbo.Inmueble WHERE inmueble_id = @inmueble_id)
-        BEGIN
-            THROW 50301, 'El inmueble especificado no existe', 1;
-        END
-        
-        -- 2. Validar que el rubro existe y está vigente
-        IF NOT EXISTS (SELECT 1 FROM dbo.Rubro WHERE rubro_id = @rubro_id AND vigencia = 1)
-        BEGIN
-            THROW 50302, 'El rubro especificado no existe o no está vigente', 1;
-        END
-        
-        -- 3. Validar que el rubro sea de tipo recurrente (para inmuebles)
-        -- NOTA: Si no tienes el campo es_recurrente en Rubro, comenta esta validación
-        /*
-        DECLARE @es_recurrente BIT;
-        SELECT @es_recurrente = es_recurrente FROM dbo.Rubro WHERE rubro_id = @rubro_id;
-        
-        IF @es_recurrente = 0
-        BEGIN
-            THROW 50303, 'El rubro especificado no es un servicio recurrente (es para trámites)', 1;
-        END
-        */
-        
-        -- 4. Validar tarifa personalizada no negativa
-        IF @tarifa_personalizada IS NOT NULL AND @tarifa_personalizada < 0
-        BEGIN
-            THROW 50304, 'La tarifa personalizada no puede ser negativa', 1;
-        END
-        
-        -- 5. Verificar si el servicio ya existe para este inmueble
-        IF EXISTS (
-            SELECT 1 FROM dbo.Servicio_Inmueble 
-            WHERE inmueble_id = @inmueble_id 
-              AND rubro_id = @rubro_id
-        )
-        BEGIN
-            -- Si existe pero está inactivo, reactivarlo
-            DECLARE @activo_actual BIT;
-            SELECT @activo_actual = activo 
-            FROM dbo.Servicio_Inmueble 
-            WHERE inmueble_id = @inmueble_id AND rubro_id = @rubro_id;
-            
-            IF @activo_actual = 0
-            BEGIN
-                -- Reactivar servicio existente
-                UPDATE dbo.Servicio_Inmueble
-                SET 
-                    activo = 1,
-                    fecha_inicio = GETDATE(),
-                    fecha_fin = NULL,
-                    tarifa_personalizada = @tarifa_personalizada,
-                    observaciones = @observaciones
-                WHERE inmueble_id = @inmueble_id 
-                  AND rubro_id = @rubro_id;
-                
-                PRINT 'Servicio reactivado exitosamente';
-            END
-            ELSE
-            BEGIN
-                THROW 50305, 'El servicio ya está activo para este inmueble', 1;
-            END
-        END
-        ELSE
-        BEGIN
-            -- Agregar nuevo servicio
-            INSERT INTO dbo.Servicio_Inmueble (
-                inmueble_id,
-                rubro_id,
-                activo,
-                fecha_inicio,
-                tarifa_personalizada,
-                observaciones
-            )
-            VALUES (
-                @inmueble_id,
-                @rubro_id,
-                1, -- activo
-                GETDATE(),
-                @tarifa_personalizada,
-                @observaciones
-            );
-            
-            PRINT 'Servicio agregado exitosamente';
-        END
-        
-        COMMIT TRANSACTION;
-        
-        -- Retornar servicios activos del inmueble
-        SELECT 
-            si.servicio_inmueble_id,
-            si.inmueble_id,
-            si.rubro_id,
-            r.nombre AS servicio_nombre,
-            r.periodicidad,
-            si.activo,
-            si.fecha_inicio,
-            si.tarifa_personalizada,
-            ISNULL(si.tarifa_personalizada, r.tarifa_base) AS tarifa_efectiva,
-            si.observaciones
-        FROM dbo.Servicio_Inmueble si
-        INNER JOIN dbo.Rubro r ON si.rubro_id = r.rubro_id
-        WHERE si.inmueble_id = @inmueble_id
-          AND si.activo = 1
-        ORDER BY r.nombre;
-        
-    END TRY
-    BEGIN CATCH
-        IF @@TRANCOUNT > 0
-            ROLLBACK TRANSACTION;
-        
-        THROW;
-    END CATCH
-END
-GO
-
-PRINT '✓ SP: sp_agregar_servicio_inmueble creado';
-GO
-
--- =============================================
--- SP2: sp_desactivar_servicio_inmueble
--- Descripción: Desactiva un servicio de un inmueble
--- =============================================
-
-IF OBJECT_ID('dbo.sp_desactivar_servicio_inmueble', 'P') IS NOT NULL
-    DROP PROCEDURE dbo.sp_desactivar_servicio_inmueble;
-GO
-
-CREATE PROCEDURE dbo.sp_desactivar_servicio_inmueble
-    @inmueble_id INT,
-    @rubro_id INT,
-    @observaciones VARCHAR(300) = NULL
-AS
-BEGIN
-    SET NOCOUNT ON;
-    
-    BEGIN TRY
-        BEGIN TRANSACTION;
-        
-        -- =============================================
-        -- VALIDACIONES
-        -- =============================================
-        
-        -- 1. Validar que el servicio existe para este inmueble
-        IF NOT EXISTS (
-            SELECT 1 FROM dbo.Servicio_Inmueble 
-            WHERE inmueble_id = @inmueble_id 
-              AND rubro_id = @rubro_id
-        )
-        BEGIN
-            THROW 50306, 'El servicio no está registrado para este inmueble', 1;
-        END
-        
-        -- 2. Validar que el servicio esté activo
-        DECLARE @activo BIT;
-        SELECT @activo = activo 
-        FROM dbo.Servicio_Inmueble 
-        WHERE inmueble_id = @inmueble_id AND rubro_id = @rubro_id;
-        
-        IF @activo = 0
-        BEGIN
-            THROW 50307, 'El servicio ya está desactivado', 1;
-        END
-        
-        -- =============================================
-        -- DESACTIVAR SERVICIO
-        -- =============================================
-        
-        UPDATE dbo.Servicio_Inmueble
-        SET 
-            activo = 0,
-            fecha_fin = GETDATE(),
-            observaciones = CASE 
-                WHEN @observaciones IS NOT NULL 
-                THEN @observaciones 
-                ELSE observaciones 
-            END
-        WHERE inmueble_id = @inmueble_id 
-          AND rubro_id = @rubro_id;
-        
-        COMMIT TRANSACTION;
-        
-        PRINT 'Servicio desactivado exitosamente';
-        PRINT 'NOTA: Las próximas facturas automáticas NO incluirán este servicio';
-        
-        -- Retornar servicios activos restantes
-        SELECT 
-            si.servicio_inmueble_id,
-            si.inmueble_id,
-            si.rubro_id,
-            r.nombre AS servicio_nombre,
-            si.activo,
-            si.fecha_inicio,
-            si.fecha_fin,
-            si.observaciones
-        FROM dbo.Servicio_Inmueble si
-        INNER JOIN dbo.Rubro r ON si.rubro_id = r.rubro_id
-        WHERE si.inmueble_id = @inmueble_id
-          AND si.activo = 1
-        ORDER BY r.nombre;
-        
-    END TRY
-    BEGIN CATCH
-        IF @@TRANCOUNT > 0
-            ROLLBACK TRANSACTION;
-        
-        THROW;
-    END CATCH
-END
-GO
-
-PRINT '✓ SP: sp_desactivar_servicio_inmueble creado';
-GO
-
--- =============================================
--- SP3: sp_listar_servicios_inmueble
--- Descripción: Lista todos los servicios de un inmueble (activos e inactivos)
--- =============================================
-
-IF OBJECT_ID('dbo.sp_listar_servicios_inmueble', 'P') IS NOT NULL
-    DROP PROCEDURE dbo.sp_listar_servicios_inmueble;
-GO
-
-CREATE PROCEDURE dbo.sp_listar_servicios_inmueble
-    @inmueble_id INT,
-    @solo_activos BIT = 1
-AS
-BEGIN
-    SET NOCOUNT ON;
-    
-    BEGIN TRY
-        -- Validar que el inmueble existe
-        IF NOT EXISTS (SELECT 1 FROM dbo.Inmueble WHERE inmueble_id = @inmueble_id)
-        BEGIN
-            THROW 50308, 'El inmueble especificado no existe', 1;
-        END
-        
-        -- Listar servicios
-        SELECT 
-            si.servicio_inmueble_id,
-            si.inmueble_id,
-            i.direccion_exacta,
-            si.rubro_id,
-            r.nombre AS servicio_nombre,
-            r.descripcion AS servicio_descripcion,
-            r.periodicidad,
-            r.tarifa_base AS tarifa_rubro,
-            si.tarifa_personalizada,
-            ISNULL(si.tarifa_personalizada, r.tarifa_base) AS tarifa_efectiva,
-            si.activo,
-            si.fecha_inicio,
-            si.fecha_fin,
-            si.observaciones,
-            CASE 
-                WHEN si.activo = 1 THEN 'Activo'
-                ELSE 'Desactivado'
-            END AS estado_texto
-        FROM dbo.Servicio_Inmueble si
-        INNER JOIN dbo.Rubro r ON si.rubro_id = r.rubro_id
-        INNER JOIN dbo.Inmueble i ON si.inmueble_id = i.inmueble_id
-        WHERE si.inmueble_id = @inmueble_id
-          AND (@solo_activos = 0 OR si.activo = 1)
-        ORDER BY si.activo DESC, r.nombre;
-        
-    END TRY
-    BEGIN CATCH
-        THROW;
-    END CATCH
-END
-GO
-
-PRINT '✓ SP: sp_listar_servicios_inmueble creado';
-GO
-
--- =============================================
--- SP4: sp_reactivar_servicio_inmueble
--- Descripción: Reactiva un servicio previamente desactivado
--- =============================================
-
-IF OBJECT_ID('dbo.sp_reactivar_servicio_inmueble', 'P') IS NOT NULL
-    DROP PROCEDURE dbo.sp_reactivar_servicio_inmueble;
-GO
-
-CREATE PROCEDURE dbo.sp_reactivar_servicio_inmueble
-    @inmueble_id INT,
-    @rubro_id INT,
-    @tarifa_personalizada DECIMAL(12,2) = NULL,
-    @observaciones VARCHAR(300) = NULL
-AS
-BEGIN
-    SET NOCOUNT ON;
-    
-    BEGIN TRY
-        BEGIN TRANSACTION;
-        
-        -- Validar que el servicio existe para este inmueble
-        IF NOT EXISTS (
-            SELECT 1 FROM dbo.Servicio_Inmueble 
-            WHERE inmueble_id = @inmueble_id 
-              AND rubro_id = @rubro_id
-        )
-        BEGIN
-            THROW 50309, 'El servicio no está registrado para este inmueble. Use sp_agregar_servicio_inmueble', 1;
-        END
-        
-        -- Validar que el servicio esté desactivado
-        DECLARE @activo_actual BIT;
-        SELECT @activo_actual = activo 
-        FROM dbo.Servicio_Inmueble 
-        WHERE inmueble_id = @inmueble_id AND rubro_id = @rubro_id;
-        
-        IF @activo_actual = 1
-        BEGIN
-            THROW 50310, 'El servicio ya está activo', 1;
-        END
-        
-        -- Reactivar servicio
-        UPDATE dbo.Servicio_Inmueble
-        SET 
-            activo = 1,
-            fecha_inicio = GETDATE(),
-            fecha_fin = NULL,
-            tarifa_personalizada = ISNULL(@tarifa_personalizada, tarifa_personalizada),
-            observaciones = ISNULL(@observaciones, observaciones)
-        WHERE inmueble_id = @inmueble_id 
-          AND rubro_id = @rubro_id;
-        
-        COMMIT TRANSACTION;
-        
-        PRINT 'Servicio reactivado exitosamente';
-        PRINT 'NOTA: Las próximas facturas automáticas SÍ incluirán este servicio';
-        
-        -- Retornar servicios activos
-        SELECT 
-            si.servicio_inmueble_id,
-            si.inmueble_id,
-            si.rubro_id,
-            r.nombre AS servicio_nombre,
-            si.activo,
-            si.fecha_inicio,
-            si.tarifa_personalizada,
-            si.observaciones
-        FROM dbo.Servicio_Inmueble si
-        INNER JOIN dbo.Rubro r ON si.rubro_id = r.rubro_id
-        WHERE si.inmueble_id = @inmueble_id
-          AND si.activo = 1
-        ORDER BY r.nombre;
-        
-    END TRY
-    BEGIN CATCH
-        IF @@TRANCOUNT > 0
-            ROLLBACK TRANSACTION;
-        
-        THROW;
-    END CATCH
-END
-GO
-
-PRINT '✓ SP: sp_reactivar_servicio_inmueble creado';
-GO
-
--- =============================================
--- SP5: sp_agregar_servicios_batch
--- Descripción: Agrega múltiples servicios a un inmueble en una sola operación
--- =============================================
-
-IF OBJECT_ID('dbo.sp_agregar_servicios_batch', 'P') IS NOT NULL
-    DROP PROCEDURE dbo.sp_agregar_servicios_batch;
-GO
-
-CREATE PROCEDURE dbo.sp_agregar_servicios_batch
-    @inmueble_id INT,
-    @rubros_ids VARCHAR(MAX) -- Lista de IDs separados por comas: "1,2,3"
-AS
-BEGIN
-    SET NOCOUNT ON;
-    
-    BEGIN TRY
-        BEGIN TRANSACTION;
-        
-        -- Validar que el inmueble existe
-        IF NOT EXISTS (SELECT 1 FROM dbo.Inmueble WHERE inmueble_id = @inmueble_id)
-        BEGIN
-            THROW 50311, 'El inmueble especificado no existe', 1;
-        END
-        
-        -- Tabla temporal para almacenar los rubros a agregar
-        CREATE TABLE #RubrosTemp (rubro_id INT);
-        
-        -- Parsear la lista de IDs
-        INSERT INTO #RubrosTemp (rubro_id)
-        SELECT CAST(value AS INT)
-        FROM STRING_SPLIT(@rubros_ids, ',')
-        WHERE LTRIM(RTRIM(value)) != '';
-        
-        -- Validar que todos los rubros existen y están vigentes
-        IF EXISTS (
-            SELECT 1 FROM #RubrosTemp t
-            WHERE NOT EXISTS (
-                SELECT 1 FROM dbo.Rubro r 
-                WHERE r.rubro_id = t.rubro_id 
-                  AND r.vigencia = 1
-            )
-        )
-        BEGIN
-            THROW 50312, 'Uno o más rubros no existen o no están vigentes', 1;
-        END
-        
-        -- Agregar servicios que no existan
-        INSERT INTO dbo.Servicio_Inmueble (inmueble_id, rubro_id, activo, fecha_inicio)
-        SELECT 
-            @inmueble_id,
-            t.rubro_id,
-            1,
-            GETDATE()
-        FROM #RubrosTemp t
-        WHERE NOT EXISTS (
-            SELECT 1 FROM dbo.Servicio_Inmueble si
-            WHERE si.inmueble_id = @inmueble_id
-              AND si.rubro_id = t.rubro_id
-              AND si.activo = 1
-        );
-        
-        DECLARE @servicios_agregados INT = @@ROWCOUNT;
-        
-        -- Reactivar servicios que existían pero estaban inactivos
-        UPDATE si
-        SET 
-            activo = 1,
-            fecha_inicio = GETDATE(),
-            fecha_fin = NULL
-        FROM dbo.Servicio_Inmueble si
-        INNER JOIN #RubrosTemp t ON si.rubro_id = t.rubro_id
-        WHERE si.inmueble_id = @inmueble_id
-          AND si.activo = 0;
-        
-        DECLARE @servicios_reactivados INT = @@ROWCOUNT;
-        
-        DROP TABLE #RubrosTemp;
-        
-        COMMIT TRANSACTION;
-        
-        PRINT CONCAT('Servicios agregados: ', @servicios_agregados);
-        PRINT CONCAT('Servicios reactivados: ', @servicios_reactivados);
-        
-        -- Retornar todos los servicios activos del inmueble
-        EXEC dbo.sp_listar_servicios_inmueble @inmueble_id = @inmueble_id, @solo_activos = 1;
-        
-    END TRY
-    BEGIN CATCH
-        IF @@TRANCOUNT > 0
-            ROLLBACK TRANSACTION;
-        
-        IF OBJECT_ID('tempdb..#RubrosTemp') IS NOT NULL
-            DROP TABLE #RubrosTemp;
-        
-        THROW;
-    END CATCH
-END
-GO
-
-PRINT '✓ SP: sp_agregar_servicios_batch creado';
-GO
-
-PRINT '';
-PRINT '========================================';
-PRINT '✅ PASO 2 COMPLETADO';
-PRINT '========================================';
-PRINT '';
-PRINT 'Stored Procedures creados:';
-PRINT '  ✓ sp_agregar_servicio_inmueble';
-PRINT '  ✓ sp_desactivar_servicio_inmueble';
-PRINT '  ✓ sp_listar_servicios_inmueble';
-PRINT '  ✓ sp_reactivar_servicio_inmueble';
-PRINT '  ✓ sp_agregar_servicios_batch';
-PRINT '';
-PRINT 'Ejemplos de uso:';
-PRINT '';
-PRINT '-- Agregar servicio individual:';
-PRINT 'EXEC sp_agregar_servicio_inmueble @inmueble_id=123, @rubro_id=1;';
-PRINT '';
-PRINT '-- Agregar múltiples servicios:';
-PRINT 'EXEC sp_agregar_servicios_batch @inmueble_id=123, @rubros_ids=''1,2,3'';';
-PRINT '';
-PRINT '-- Listar servicios:';
-PRINT 'EXEC sp_listar_servicios_inmueble @inmueble_id=123;';
-PRINT '';
-PRINT '-- Desactivar servicio:';
-PRINT 'EXEC sp_desactivar_servicio_inmueble @inmueble_id=123, @rubro_id=3;';
-PRINT '';
-PRINT '========================================';
-PRINT '🚀 Listo para Paso 3: Job Automático';
-PRINT '========================================';
-GO
-
-
-
-
-
-
--- =============================================
--- SP1: sp_insertar_servicio_inmueble
--- =============================================
-DROP PROCEDURE IF EXISTS dbo.sp_insertar_servicio_inmueble;
-GO
-
-CREATE PROCEDURE dbo.sp_insertar_servicio_inmueble
-    @inmueble_id INT,
-    @rubro_id INT,
-    @tarifa_personalizada DECIMAL(12,2) = NULL,
-    @fecha_inicio DATE,
-    @observaciones VARCHAR(500) = NULL,
-    @servicio_inmueble_id INT OUTPUT
-AS
-BEGIN
-    SET NOCOUNT ON;
-    
-    BEGIN TRY
-        BEGIN TRANSACTION;
-        
-        -- Validar que el inmueble existe
-        IF NOT EXISTS (SELECT 1 FROM dbo.Inmueble WHERE inmueble_id = @inmueble_id)
-        BEGIN
-            THROW 50401, 'El inmueble especificado no existe', 1;
-        END
-        
-        -- Validar que el rubro existe y está activo
-        IF NOT EXISTS (SELECT 1 FROM dbo.Rubro WHERE rubro_id = @rubro_id AND vigencia = 1)
-        BEGIN
-            THROW 50402, 'El rubro especificado no existe o no está activo', 1;
-        END
-        
-        -- Validar que no exista ya un servicio activo con el mismo rubro para este inmueble
-        IF EXISTS (
-            SELECT 1 FROM dbo.Servicio_Inmueble 
-            WHERE inmueble_id = @inmueble_id 
-              AND rubro_id = @rubro_id 
-              AND activo = 1
-        )
-        BEGIN
-            THROW 50403, 'Ya existe un servicio activo con este rubro para el inmueble', 1;
-        END
-        
-        -- Validar tarifa_personalizada >= 0 (si se especifica)
-        IF @tarifa_personalizada IS NOT NULL AND @tarifa_personalizada < 0
-        BEGIN
-            THROW 50404, 'La tarifa personalizada no puede ser negativa', 1;
-        END
-        
-        -- Insertar el servicio
-        INSERT INTO dbo.Servicio_Inmueble (
-            inmueble_id,
-            rubro_id,
-            tarifa_personalizada,
-            fecha_inicio,
-            fecha_fin,
-            activo,
-            observaciones
-        )
-        VALUES (
-            @inmueble_id,
-            @rubro_id,
-            @tarifa_personalizada,
-            @fecha_inicio,
-            NULL, -- fecha_fin NULL (servicio activo)
-            1,    -- activo = 1
-            @observaciones
-        );
-        
-        SET @servicio_inmueble_id = SCOPE_IDENTITY();
-        
-        COMMIT TRANSACTION;
-        
-        PRINT 'Servicio de inmueble creado exitosamente (ID: ' + CAST(@servicio_inmueble_id AS VARCHAR(10)) + ')';
-        
-    END TRY
-    BEGIN CATCH
-        IF @@TRANCOUNT > 0
-            ROLLBACK TRANSACTION;
-        THROW;
-    END CATCH
-END
-GO
-
--- =============================================
--- SP2: sp_consultar_servicio_inmueble_por_id
--- =============================================
-DROP PROCEDURE IF EXISTS dbo.sp_consultar_servicio_inmueble_por_id;
-GO
-
-CREATE PROCEDURE dbo.sp_consultar_servicio_inmueble_por_id
-    @servicio_inmueble_id INT
-AS
-BEGIN
-    SET NOCOUNT ON;
-    
-    BEGIN TRY
-        IF NOT EXISTS (SELECT 1 FROM dbo.Servicio_Inmueble WHERE servicio_inmueble_id = @servicio_inmueble_id)
-        BEGIN
-            THROW 50405, 'El servicio de inmueble no existe', 1;
-        END
-        
-        SELECT 
-            si.servicio_inmueble_id,
-            si.inmueble_id,
-            si.rubro_id,
-            r.nombre AS rubro_nombre,
-            r.periodicidad AS rubro_periodicidad,
-            r.tarifa_base,
-            si.tarifa_personalizada,
-            ISNULL(si.tarifa_personalizada, r.tarifa_base) AS tarifa_aplicar,
-            si.fecha_inicio,
-            si.fecha_fin,
-            si.activo,
-            si.observaciones
-        FROM dbo.Servicio_Inmueble si
-        INNER JOIN dbo.Rubro r ON si.rubro_id = r.rubro_id
-        WHERE si.servicio_inmueble_id = @servicio_inmueble_id;
-        
-    END TRY
-    BEGIN CATCH
-        THROW;
-    END CATCH
-END
-GO
-
--- =============================================
--- SP3: sp_listar_servicios_por_inmueble
--- =============================================
-DROP PROCEDURE IF EXISTS dbo.sp_listar_servicios_por_inmueble;
-GO
-
-CREATE PROCEDURE dbo.sp_listar_servicios_por_inmueble
-    @inmueble_id INT
-AS
-BEGIN
-    SET NOCOUNT ON;
-    
-    BEGIN TRY
-        SELECT 
-            si.servicio_inmueble_id,
-            si.rubro_id,
-            r.nombre AS rubro_nombre,
-            r.periodicidad AS rubro_periodicidad,
-            r.tarifa_base,
-            si.tarifa_personalizada,
-            ISNULL(si.tarifa_personalizada, r.tarifa_base) AS tarifa_aplicar,
-            si.fecha_inicio,
-            si.fecha_fin,
-            si.activo,
-            si.observaciones
-        FROM dbo.Servicio_Inmueble si
-        INNER JOIN dbo.Rubro r ON si.rubro_id = r.rubro_id
-        WHERE si.inmueble_id = @inmueble_id
-        ORDER BY si.activo DESC, si.fecha_inicio DESC;
-        
-    END TRY
-    BEGIN CATCH
-        THROW;
-    END CATCH
-END
-GO
-
--- =============================================
--- SP4: sp_actualizar_servicio_inmueble
--- =============================================
-DROP PROCEDURE IF EXISTS dbo.sp_actualizar_servicio_inmueble;
-GO
-
-CREATE PROCEDURE dbo.sp_actualizar_servicio_inmueble
-    @servicio_inmueble_id INT,
-    @tarifa_personalizada DECIMAL(12,2) = NULL,
-    @activo BIT = NULL,
-    @fecha_fin DATE = NULL,
-    @observaciones VARCHAR(500) = NULL
-AS
-BEGIN
-    SET NOCOUNT ON;
-    
-    BEGIN TRY
-        BEGIN TRANSACTION;
-        
-        IF NOT EXISTS (SELECT 1 FROM dbo.Servicio_Inmueble WHERE servicio_inmueble_id = @servicio_inmueble_id)
-        BEGIN
-            THROW 50405, 'El servicio de inmueble no existe', 1;
-        END
-        
-        IF @tarifa_personalizada IS NOT NULL AND @tarifa_personalizada < 0
-        BEGIN
-            THROW 50404, 'La tarifa personalizada no puede ser negativa', 1;
-        END
-        
-        UPDATE dbo.Servicio_Inmueble
-        SET
-            tarifa_personalizada = CASE WHEN @tarifa_personalizada IS NOT NULL THEN @tarifa_personalizada ELSE tarifa_personalizada END,
-            activo = ISNULL(@activo, activo),
-            fecha_fin = CASE WHEN @fecha_fin IS NOT NULL THEN @fecha_fin ELSE fecha_fin END,
-            observaciones = CASE WHEN @observaciones IS NOT NULL THEN @observaciones ELSE observaciones END
-        WHERE servicio_inmueble_id = @servicio_inmueble_id;
-        
-        COMMIT TRANSACTION;
-        
-        PRINT 'Servicio actualizado exitosamente';
-        
-    END TRY
-    BEGIN CATCH
-        IF @@TRANCOUNT > 0
-            ROLLBACK TRANSACTION;
-        THROW;
-    END CATCH
-END
-GO
-
--- =============================================
--- SP5: sp_eliminar_servicio_inmueble (Soft Delete)
--- =============================================
-DROP PROCEDURE IF EXISTS dbo.sp_eliminar_servicio_inmueble;
-GO
-
-CREATE PROCEDURE dbo.sp_eliminar_servicio_inmueble
-    @servicio_inmueble_id INT
-AS
-BEGIN
-    SET NOCOUNT ON;
-    
-    BEGIN TRY
-        BEGIN TRANSACTION;
-        
-        IF NOT EXISTS (SELECT 1 FROM dbo.Servicio_Inmueble WHERE servicio_inmueble_id = @servicio_inmueble_id)
-        BEGIN
-            THROW 50405, 'El servicio de inmueble no existe', 1;
-        END
-        
-        DECLARE @activo_actual BIT;
-        SELECT @activo_actual = activo FROM dbo.Servicio_Inmueble WHERE servicio_inmueble_id = @servicio_inmueble_id;
-        
-        IF @activo_actual = 0
-        BEGIN
-            THROW 50406, 'El servicio ya está desactivado', 1;
-        END
-        
-        UPDATE dbo.Servicio_Inmueble
-        SET 
-            activo = 0,
-            fecha_fin = CAST(GETDATE() AS DATE)
-        WHERE servicio_inmueble_id = @servicio_inmueble_id;
-        
-        COMMIT TRANSACTION;
-        
-        PRINT 'Servicio desactivado exitosamente';
-        
-    END TRY
-    BEGIN CATCH
-        IF @@TRANCOUNT > 0
-            ROLLBACK TRANSACTION;
-        THROW;
-    END CATCH
-END
-GO
-
-PRINT '';
-PRINT '========================================';
-PRINT '✅ MÓDULO SERVICIO_INMUEBLE COMPLETADO';
-PRINT '   5 Stored Procedures creados:';
-PRINT '   1. sp_insertar_servicio_inmueble';
-PRINT '   2. sp_consultar_servicio_inmueble_por_id';
-PRINT '   3. sp_listar_servicios_por_inmueble';
-PRINT '   4. sp_actualizar_servicio_inmueble';
-PRINT '   5. sp_eliminar_servicio_inmueble';
-PRINT '========================================';
-GO
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 -- =============================================
 -- SCRIPT CORREGIDO: DATOS DE PRUEBA Y TESTS
 -- =============================================
@@ -2543,7 +1681,7 @@ DELETE FROM Contribuyente_fisico;
 DELETE FROM Contribuyente;
 GO
 
-PRINT '✓ Datos previos eliminados';
+PRINT ' Datos previos eliminados';
 GO
 
 -- =============================================
@@ -2582,7 +1720,7 @@ SET @contribuyente2_id = (SELECT TOP 1 contribuyente_id FROM Contribuyente ORDER
 
 -- Contribuyente Jurídico
 
--- ✅ CORRECTO
+
 EXEC sp_Contribuyente_InsertarJuridico
     @cedula_juridica = '3-101-234567',
     @nombre_empresa = 'Nicoya Desarrollos S.A.',
@@ -2591,7 +1729,7 @@ EXEC sp_Contribuyente_InsertarJuridico
     @email = 'info@nicoyadesarrollos.cr',
     @direccion = 'Nicoya, Zona Industrial';
 
-PRINT '✓ Contribuyentes insertados';
+PRINT ' Contribuyentes insertados';
 PRINT '  - Contribuyente 1 ID: ' + CAST(@contribuyente1_id AS VARCHAR(10));
 PRINT '  - Contribuyente 2 ID: ' + CAST(@contribuyente2_id AS VARCHAR(10));
 GO
@@ -2637,7 +1775,7 @@ EXEC sp_Inmueble_Insertar
 
 SET @inmueble3_id = (SELECT TOP 1 inmueble_id FROM Inmueble ORDER BY inmueble_id DESC);
 
-PRINT '✓ Inmuebles insertados';
+PRINT ' Inmuebles insertados';
 PRINT '  - Inmueble 1 ID: ' + CAST(@inmueble1_id AS VARCHAR(10));
 PRINT '  - Inmueble 2 ID: ' + CAST(@inmueble2_id AS VARCHAR(10));
 PRINT '  - Inmueble 3 ID: ' + CAST(@inmueble3_id AS VARCHAR(10));
@@ -2677,7 +1815,7 @@ EXEC sp_Inmueble_AsociarContribuyente
     @inmueble_id = @inm3,
     @porcentaje_propiedad = 100.00;
 
-PRINT '✓ Asociaciones creadas';
+PRINT 'Asociaciones creadas';
 GO
 
 -- =============================================
@@ -2712,7 +1850,7 @@ EXEC sp_Catastro_Insertar
 
 SET @catastro2_id = (SELECT TOP 1 catastro_id FROM Catastro ORDER BY catastro_id DESC);
 
-PRINT '✓ Catastros insertados';
+PRINT ' Catastros insertados';
 PRINT '  - Catastro 1 ID: ' + CAST(@catastro1_id AS VARCHAR(10));
 PRINT '  - Catastro 2 ID: ' + CAST(@catastro2_id AS VARCHAR(10));
 GO
@@ -2778,7 +1916,7 @@ EXEC sp_ObservacionInmueble_Insertar
     @descripcion = 'Local comercial bien ubicado, alta afluencia',
     @inmueble_id = @inm2;
 
-PRINT '✓ Observaciones insertadas';
+PRINT ' Observaciones insertadas';
 GO
 
 -- =============================================
@@ -2845,8 +1983,8 @@ GO
 
 PRINT '';
 PRINT '========================================';
-PRINT '✓ TODAS LAS PRUEBAS COMPLETADAS';
-PRINT '========================================';
+PRINT 'TODAS LAS PRUEBAS COMPLETADAS';
+PRINT '=======================================';
 PRINT 'Resumen:';
 PRINT '  - Contribuyentes creados y listados';
 PRINT '  - Inmuebles creados y asociados';
