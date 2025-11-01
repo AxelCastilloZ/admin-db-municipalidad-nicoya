@@ -695,7 +695,7 @@ WHERE ttr.tipo_tramite_requisito_id IS NULL;
 GO
 
 /* ===========================================================
-   3) Asociar requisitos a los NUEVOS tipos (idempotente)
+   3) Asociar requisitos a los NUEVOS tipos 
    =========================================================== */
 IF NOT EXISTS (
     SELECT 1 FROM sys.indexes 
@@ -840,8 +840,6 @@ GO
 
 -- =============================================
 -- MÓDULO: TRÁMITES Y PERMISOS
--- Script: Datos de Prueba y Tests (CORREGIDO)
--- Descripción: Inserción de datos de prueba con validación robusta
 -- =============================================
 
 USE MunicipalidadNicoya;
