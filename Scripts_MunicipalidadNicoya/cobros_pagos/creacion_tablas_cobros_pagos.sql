@@ -75,7 +75,7 @@ IF EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_DetalleFactura_RubroId')
 IF EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_Rubro_Vigencia')
     DROP INDEX IX_Rubro_Vigencia ON dbo.Rubro;
 
-PRINT '✓ Restricciones e índices eliminados';
+PRINT 'Restricciones e índices eliminados';
 GO
 
 -- =============================================
@@ -150,8 +150,6 @@ VALUES
 ('Otros Servicios', 'Servicios varios municipales', NULL, 0, 1, 0, 0, 0, 0);
 GO
 
-PRINT ' Tabla Rubro creada con datos iniciales (incluye tarifa_base)';
-GO
 
 -- =============================================
 -- TABLA: Factura
@@ -210,7 +208,6 @@ CREATE TABLE dbo.Detalle_factura
 (
     detalle_factura_id INT IDENTITY(1,1) NOT NULL,
     nombre VARCHAR(100) NOT NULL,
-    referencia_servicio VARCHAR(100) NULL,
     cantidad INT NOT NULL DEFAULT 1,
     monto_unitario DECIMAL(12,2) NOT NULL,
     descuento_linea DECIMAL(12,2) NOT NULL DEFAULT 0,
