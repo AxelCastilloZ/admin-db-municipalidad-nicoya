@@ -1,9 +1,8 @@
--- =============================================
--- SCRIPT: CREACI�N DE USUARIOS Y ROLES
--- Base de Datos: MunicipalidadNicoya
--- Descripci�n: Sistema de seguridad con 2 roles
---              - auditor: Acceso total incluyendo auditor�as
---              - funcionario_municipal: Acceso operativo SIN auditor�as
+﻿-- =============================================
+-- SCRIPT UNIFICADO: CONFIGURACIÓN COMPLETA DE SEGURIDAD
+-- Base de Datos: MunicipalidadNicoya + DataMart
+-- Descripción: Configuración desde cero con limpieza previa
+-- Usuarios: usr_auditor y usr_funcionario
 -- =============================================
 
 USE master;
@@ -11,288 +10,302 @@ GO
 
 PRINT '';
 PRINT '========================================';
-PRINT ' INICIANDO CONFIGURACI�N DE SEGURIDAD';
-PRINT '   Base de Datos: MunicipalidadNicoya';
+PRINT ' INICIANDO LIMPIEZA Y CONFIGURACIÓN';
+PRINT '   Sistema de Seguridad Completo';
 PRINT '========================================';
 PRINT '';
 
 -- =============================================
--- PASO 1: CREAR LOGINS A NIVEL DE SERVIDOR
--- (Si ya existen, los elimina y los vuelve a crear)
+-- FASE 1: LIMPIEZA COMPLETA
 -- =============================================
 
-PRINT ' PASO 1: Creando Logins de SQL Server...';
+PRINT '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━';
+PRINT '   FASE 1: LIMPIEZA DE CONFIGURACIÓN PREVIA';
+PRINT '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━';
 PRINT '';
 
--- Eliminar logins si ya existen
-IF EXISTS (SELECT 1 FROM sys.server_principals WHERE name = 'usr_auditor')
-BEGIN
-    DROP LOGIN usr_auditor;
-    PRINT '  Login usr_auditor existente eliminado';
-END
-
-IF EXISTS (SELECT 1 FROM sys.server_principals WHERE name = 'usr_funcionario')
-BEGIN
-    DROP LOGIN usr_funcionario;
-    PRINT '  Login usr_funcionario existente eliminado';
-END
-
--- Crear el login para el AUDITOR
-CREATE LOGIN usr_auditor 
-    WITH PASSWORD = 'Auditor123',
-    DEFAULT_DATABASE = MunicipalidadNicoya,
-    CHECK_POLICY = ON,
-    CHECK_EXPIRATION = OFF;
-
-PRINT '  Login creado: usr_auditor (Contrase�a: Auditor123)';
-
--- Crear el login para el FUNCIONARIO
-CREATE LOGIN usr_funcionario 
-    WITH PASSWORD = 'Funcionario123',
-    DEFAULT_DATABASE = MunicipalidadNicoya,
-    CHECK_POLICY = ON,
-    CHECK_EXPIRATION = OFF;
-
-PRINT '  Login creado: usr_funcionario (Contrase�a: Funcionario123)';
-PRINT '';
-
--- =============================================
--- PASO 2: CREAR USUARIOS EN LA BASE DE DATOS
--- =============================================
-
-USE MunicipalidadNicoya;
+-- Limpiar usuarios en DataMart
+USE MunicipalidadNicoyaDataMart;
 GO
 
-PRINT 'PASO 2: Creando Usuarios en la Base de Datos...';
-PRINT '';
+PRINT 'Limpiando usuarios en DataMart...';
 
--- Eliminar usuarios si ya existen
 IF EXISTS (SELECT 1 FROM sys.database_principals WHERE name = 'usr_auditor')
 BEGIN
     DROP USER usr_auditor;
-    PRINT '  Usuario usr_auditor existente eliminado';
+    PRINT '  ✓ Usuario usr_auditor eliminado de DataMart';
 END
 
 IF EXISTS (SELECT 1 FROM sys.database_principals WHERE name = 'usr_funcionario')
 BEGIN
     DROP USER usr_funcionario;
-    PRINT '  Usuario usr_funcionario existente eliminado';
+    PRINT '  ✓ Usuario usr_funcionario eliminado de DataMart';
 END
 
--- Crear usuario AUDITOR en la BD
-CREATE USER usr_auditor FOR LOGIN usr_auditor;
-PRINT '  Usuario creado en BD: usr_auditor';
-
--- Crear usuario FUNCIONARIO en la BD
-CREATE USER usr_funcionario FOR LOGIN usr_funcionario;
-PRINT '  Usuario creado en BD: usr_funcionario';
-PRINT '';
-
--- =============================================
--- PASO 3: CREAR ROLES DE BASE DE DATOS
--- =============================================
-
-PRINT 'PASO 3: Creando Roles de Base de Datos...';
-PRINT '';
-
--- Eliminar roles si ya existen
 IF EXISTS (SELECT 1 FROM sys.database_principals WHERE name = 'auditor' AND type = 'R')
 BEGIN
     DROP ROLE auditor;
-    PRINT '  Rol auditor existente eliminado';
+    PRINT '  ✓ Rol auditor eliminado de DataMart';
 END
 
 IF EXISTS (SELECT 1 FROM sys.database_principals WHERE name = 'funcionario_municipal' AND type = 'R')
 BEGIN
     DROP ROLE funcionario_municipal;
-    PRINT '  Rol funcionario_municipal existente eliminado';
+    PRINT '  ✓ Rol funcionario_municipal eliminado de DataMart';
 END
 
--- Crear rol AUDITOR
+PRINT '';
+
+-- Limpiar usuarios en MunicipalidadNicoya
+USE MunicipalidadNicoya;
+GO
+
+PRINT 'Limpiando usuarios en MunicipalidadNicoya...';
+
+IF EXISTS (SELECT 1 FROM sys.database_principals WHERE name = 'usr_auditor')
+BEGIN
+    DROP USER usr_auditor;
+    PRINT '  ✓ Usuario usr_auditor eliminado';
+END
+
+IF EXISTS (SELECT 1 FROM sys.database_principals WHERE name = 'usr_funcionario')
+BEGIN
+    DROP USER usr_funcionario;
+    PRINT '  ✓ Usuario usr_funcionario eliminado';
+END
+
+IF EXISTS (SELECT 1 FROM sys.database_principals WHERE name = 'auditor' AND type = 'R')
+BEGIN
+    DROP ROLE auditor;
+    PRINT '  ✓ Rol auditor eliminado';
+END
+
+IF EXISTS (SELECT 1 FROM sys.database_principals WHERE name = 'funcionario_municipal' AND type = 'R')
+BEGIN
+    DROP ROLE funcionario_municipal;
+    PRINT '  ✓ Rol funcionario_municipal eliminado';
+END
+
+PRINT '';
+
+-- Limpiar logins a nivel de servidor
+USE master;
+GO
+
+PRINT 'Limpiando logins del servidor...';
+
+IF EXISTS (SELECT 1 FROM sys.server_principals WHERE name = 'usr_auditor')
+BEGIN
+    DROP LOGIN usr_auditor;
+    PRINT '  ✓ Login usr_auditor eliminado';
+END
+
+IF EXISTS (SELECT 1 FROM sys.server_principals WHERE name = 'usr_funcionario')
+BEGIN
+    DROP LOGIN usr_funcionario;
+    PRINT '  ✓ Login usr_funcionario eliminado';
+END
+
+PRINT '';
+PRINT ' LIMPIEZA COMPLETADA';
+PRINT '';
+
+-- =============================================
+-- FASE 2: CONFIGURACIÓN DE CROSS-DATABASE
+-- =============================================
+
+PRINT '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━';
+PRINT '   FASE 2: CONFIGURACIÓN CROSS-DATABASE';
+PRINT '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━';
+PRINT '';
+
+-- Configurar ownership de bases de datos
+ALTER AUTHORIZATION ON DATABASE::MunicipalidadNicoya TO sa;
+PRINT '  ✓ Owner de MunicipalidadNicoya sa';
+
+ALTER AUTHORIZATION ON DATABASE::MunicipalidadNicoyaDataMart TO sa;
+PRINT '  ✓ Owner de MunicipalidadNicoyaDataMart sa';
+
+-- Habilitar cross-database ownership chaining
+ALTER DATABASE MunicipalidadNicoya SET DB_CHAINING ON;
+PRINT '  ✓ DB_CHAINING habilitado en MunicipalidadNicoya';
+
+ALTER DATABASE MunicipalidadNicoyaDataMart SET DB_CHAINING ON;
+PRINT '  ✓ DB_CHAINING habilitado en DataMart';
+
+-- Configurar Trustworthy
+ALTER DATABASE MunicipalidadNicoya SET TRUSTWORTHY ON;
+PRINT '  ✓ TRUSTWORTHY habilitado en MunicipalidadNicoya';
+
+ALTER DATABASE MunicipalidadNicoyaDataMart SET TRUSTWORTHY ON;
+PRINT '  ✓ TRUSTWORTHY habilitado en DataMart';
+
+PRINT '';
+PRINT ' CONFIGURACIÓN CROSS-DATABASE COMPLETADA';
+PRINT '';
+
+-- =============================================
+-- FASE 3: CREAR LOGINS A NIVEL DE SERVIDOR
+-- =============================================
+
+PRINT '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━';
+PRINT '   FASE 3: CREACIÓN DE LOGINS';
+PRINT '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━';
+PRINT '';
+
+CREATE LOGIN usr_auditor 
+    WITH PASSWORD = 'Auditor123',
+    DEFAULT_DATABASE = MunicipalidadNicoya,
+    CHECK_POLICY = ON,
+    CHECK_EXPIRATION = OFF;
+PRINT '  ✓ Login creado: usr_auditor (Password: Auditor123)';
+
+CREATE LOGIN usr_funcionario 
+    WITH PASSWORD = 'Funcionario123',
+    DEFAULT_DATABASE = MunicipalidadNicoya,
+    CHECK_POLICY = ON,
+    CHECK_EXPIRATION = OFF;
+PRINT '  ✓ Login creado: usr_funcionario (Password: Funcionario123)';
+
+PRINT '';
+PRINT ' LOGINS CREADOS';
+PRINT '';
+
+-- =============================================
+-- FASE 4: CONFIGURAR MunicipalidadNicoya
+-- =============================================
+
+USE MunicipalidadNicoya;
+GO
+
+PRINT '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━';
+PRINT '   FASE 4: CONFIGURANDO MunicipalidadNicoya';
+PRINT '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━';
+PRINT '';
+
+-- Crear usuarios
+CREATE USER usr_auditor FOR LOGIN usr_auditor;
+PRINT '  ✓ Usuario creado: usr_auditor';
+
+CREATE USER usr_funcionario FOR LOGIN usr_funcionario;
+PRINT '  ✓ Usuario creado: usr_funcionario';
+
+-- Crear roles
 CREATE ROLE auditor;
-PRINT '  Rol creado: auditor';
+PRINT '  ✓ Rol creado: auditor';
 
--- Crear rol FUNCIONARIO MUNICIPAL
 CREATE ROLE funcionario_municipal;
-PRINT '  Rol creado: funcionario_municipal';
-PRINT '';
+PRINT '  ✓ Rol creado: funcionario_municipal';
 
--- =============================================
--- PASO 4: ASIGNAR PERMISOS AL ROL AUDITOR
--- (Control total sobre toda la base de datos)
--- =============================================
-
-PRINT 'PASO 4: Asignando permisos al rol AUDITOR...';
-PRINT '';
-
--- El auditor tiene control total (db_owner)
+-- Permisos para AUDITOR
 ALTER ROLE db_owner ADD MEMBER auditor;
-PRINT '  Rol auditor agregado a db_owner (control total)';
-
--- Permisos expl�citos adicionales para claridad
 GRANT SELECT, INSERT, UPDATE, DELETE ON SCHEMA::dbo TO auditor;
-PRINT '  Permisos CRUD en schema dbo otorgados';
-
 GRANT EXECUTE ON SCHEMA::dbo TO auditor;
-PRINT '  Permiso EXECUTE en todos los SPs otorgado';
+GRANT CREATE TABLE, CREATE VIEW, CREATE PROCEDURE TO auditor;
+PRINT '  ✓ Permisos otorgados a auditor (control total)';
 
-GRANT CREATE TABLE TO auditor;
-GRANT CREATE VIEW TO auditor;
-GRANT CREATE PROCEDURE TO auditor;
-PRINT '  Permisos de creaci�n de objetos otorgados';
-PRINT '';
-
--- =============================================
--- PASO 5: ASIGNAR PERMISOS AL ROL FUNCIONARIO_MUNICIPAL
--- (Acceso operativo PERO sin auditor�as)
--- =============================================
-
-PRINT ' PASO 5: Asignando permisos al rol FUNCIONARIO_MUNICIPAL...';
-PRINT '';
-
--- Dar permisos b�sicos de lectura y escritura
+-- Permisos para FUNCIONARIO MUNICIPAL
 GRANT SELECT, INSERT, UPDATE, DELETE ON SCHEMA::dbo TO funcionario_municipal;
-PRINT '  Permisos CRUD en schema dbo otorgados';
-
 GRANT EXECUTE ON SCHEMA::dbo TO funcionario_municipal;
-PRINT '  Permiso EXECUTE en SPs otorgado (se bloquear�n los de auditor�a despu�s)';
+GRANT CREATE TABLE, CREATE VIEW, CREATE PROCEDURE TO funcionario_municipal;
+PRINT '  ✓ Permisos otorgados a funcionario_municipal';
 
--- Permisos para crear objetos (tablas, vistas, SPs)
-GRANT CREATE TABLE TO funcionario_municipal;
-GRANT CREATE VIEW TO funcionario_municipal;
-GRANT CREATE PROCEDURE TO funcionario_municipal;
-PRINT '  Permisos de creaci�n de objetos otorgados';
-PRINT '';
-
--- =============================================
--- PASO 5.1: ASIGNAR PERMISOS EN ESQUEMA DM (DATA MART)
--- =============================================
-
-PRINT ' PASO 5.1: Asignando permisos en esquema DM (Data Mart)...';
-PRINT '';
-
--- Verificar si existe el esquema DM
-IF EXISTS (SELECT 1 FROM sys.schemas WHERE name = 'DM')
-BEGIN
-    -- Permisos completos para AUDITOR en esquema DM
-    GRANT SELECT, INSERT, UPDATE, DELETE ON SCHEMA::DM TO auditor;
-    PRINT '  Permisos CRUD en schema DM otorgados a auditor';
-    
-    -- Permisos de lectura para FUNCIONARIO en esquema DM
-    GRANT SELECT ON SCHEMA::DM TO funcionario_municipal;
-    PRINT '  Permiso SELECT en schema DM otorgado a funcionario_municipal';
-END
-ELSE
-BEGIN
-    PRINT '  ADVERTENCIA: Esquema DM no existe a�n. Ejecutar permisos cuando se cree.';
-END
-
-PRINT '';
-
--- =============================================
--- PASO 6: BLOQUEAR ACCESO A TABLAS DE AUDITOR�A
--- (DENY expl�cito para funcionario_municipal)
--- =============================================
-
-PRINT ' PASO 6: Bloqueando acceso a tablas de AUDITOR�A...';
-PRINT '';
-
--- Bloquear acceso a Factura_Auditoria
+-- Bloquear tablas de auditoría para funcionario
 IF OBJECT_ID('dbo.Factura_Auditoria', 'U') IS NOT NULL
 BEGIN
     DENY SELECT, INSERT, UPDATE, DELETE ON dbo.Factura_Auditoria TO funcionario_municipal;
-    PRINT '  Acceso BLOQUEADO a Factura_Auditoria';
-END
-ELSE
-BEGIN
-    PRINT '  Tabla Factura_Auditoria no existe a�n (crear DENY cuando exista)';
+    PRINT '  ✓ Acceso bloqueado a Factura_Auditoria';
 END
 
--- Bloquear acceso a Pago_Auditoria
 IF OBJECT_ID('dbo.Pago_Auditoria', 'U') IS NOT NULL
 BEGIN
     DENY SELECT, INSERT, UPDATE, DELETE ON dbo.Pago_Auditoria TO funcionario_municipal;
-    PRINT '  Acceso BLOQUEADO a Pago_Auditoria';
-END
-ELSE
-BEGIN
-    PRINT '  Tabla Pago_Auditoria no existe a�n (crear DENY cuando exista)';
+    PRINT '  ✓ Acceso bloqueado a Pago_Auditoria';
 END
 
-PRINT '';
-
--- =============================================
--- PASO 7: BLOQUEAR STORED PROCEDURES DE AUDITOR�A
--- (DENY expl�cito para funcionario_municipal)
--- =============================================
-
-PRINT ' PASO 7: Bloqueando SPs de consulta de AUDITOR�A...';
-PRINT '';
-
--- Bloquear SP de historial de facturas
-IF OBJECT_ID('dbo.sp_Factura_ConsultarHistorial', 'P') IS NOT NULL
-BEGIN
-    DENY EXECUTE ON dbo.sp_Factura_ConsultarHistorial TO funcionario_municipal;
-    PRINT '  Ejecuci�n BLOQUEADA: sp_Factura_ConsultarHistorial';
-END
-ELSE
-BEGIN
-    PRINT '  SP sp_Factura_ConsultarHistorial no existe a�n';
-END
-
--- Bloquear SP de historial de pagos
-IF OBJECT_ID('dbo.sp_Pago_ConsultarHistorial', 'P') IS NOT NULL
-BEGIN
-    DENY EXECUTE ON dbo.sp_Pago_ConsultarHistorial TO funcionario_municipal;
-    PRINT '  Ejecuci�n BLOQUEADA: sp_Pago_ConsultarHistorial';
-END
-ELSE
-BEGIN
-    PRINT '  SP sp_Pago_ConsultarHistorial no existe a�n';
-END
-
--- Bloquear SP de consulta por fecha
-IF OBJECT_ID('dbo.sp_Auditoria_ConsultarPorFecha', 'P') IS NOT NULL
-BEGIN
-    DENY EXECUTE ON dbo.sp_Auditoria_ConsultarPorFecha TO funcionario_municipal;
-    PRINT '  Ejecuci�n BLOQUEADA: sp_Auditoria_ConsultarPorFecha';
-END
-ELSE
-BEGIN
-    PRINT '  SP sp_Auditoria_ConsultarPorFecha no existe a�n';
-END
-
-PRINT '';
-
--- =============================================
--- PASO 8: ASIGNAR USUARIOS A SUS ROLES
--- =============================================
-
-PRINT ' PASO 8: Asignando usuarios a sus roles...';
-PRINT '';
-
--- Asignar usr_auditor al rol auditor
+-- Asignar usuarios a roles
 ALTER ROLE auditor ADD MEMBER usr_auditor;
-PRINT '  usr_auditor asignado al rol: auditor';
+PRINT '  ✓ usr_auditor → rol auditor';
 
--- Asignar usr_funcionario al rol funcionario_municipal
 ALTER ROLE funcionario_municipal ADD MEMBER usr_funcionario;
-PRINT '  usr_funcionario asignado al rol: funcionario_municipal';
+PRINT '  ✓ usr_funcionario → rol funcionario_municipal';
 
 PRINT '';
-PRINT '========================================';
-PRINT ' CONFIGURACI�N COMPLETADA EXITOSAMENTE';
-PRINT '========================================';
+PRINT ' MunicipalidadNicoya CONFIGURADA';
 PRINT '';
-PRINT ' RESUMEN DE USUARIOS CREADOS:';
-PRINT '   - usr_auditor (Contrase�a: Auditor123)';
-PRINT '     Rol: auditor - Acceso total + auditor�as';
+
+-- =============================================
+-- FASE 5: CONFIGURAR DataMart
+-- =============================================
+
+USE MunicipalidadNicoyaDataMart;
+GO
+
+PRINT '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━';
+PRINT '   FASE 5: CONFIGURANDO DataMart';
+PRINT '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━';
 PRINT '';
-PRINT '   - usr_funcionario (Contrase�a: Funcionario123)';
-PRINT '     Rol: funcionario_municipal - Acceso operativo sin auditor�as';
+
+-- Crear usuarios
+CREATE USER usr_auditor FOR LOGIN usr_auditor;
+PRINT '  ✓ Usuario creado: usr_auditor';
+
+CREATE USER usr_funcionario FOR LOGIN usr_funcionario;
+PRINT '  ✓ Usuario creado: usr_funcionario';
+
+-- Crear roles
+CREATE ROLE auditor;
+PRINT '  ✓ Rol creado: auditor';
+
+CREATE ROLE funcionario_municipal;
+PRINT '  ✓ Rol creado: funcionario_municipal';
+
+-- Permisos para AUDITOR
+ALTER ROLE db_owner ADD MEMBER auditor;
+GRANT SELECT, INSERT, UPDATE, DELETE ON SCHEMA::dbo TO auditor;
+GRANT EXECUTE ON SCHEMA::dbo TO auditor;
+PRINT '  ✓ Permisos otorgados a auditor (control total)';
+
+-- Permisos en esquema DM si existe
+IF EXISTS (SELECT 1 FROM sys.schemas WHERE name = 'DM')
+BEGIN
+    GRANT SELECT, INSERT, UPDATE, DELETE ON SCHEMA::DM TO auditor;
+    GRANT EXECUTE ON SCHEMA::DM TO auditor;
+    PRINT '  ✓ Permisos en schema DM otorgados a auditor';
+END
+
+-- Permisos para FUNCIONARIO MUNICIPAL
+ALTER ROLE db_datareader ADD MEMBER funcionario_municipal;
+ALTER ROLE db_datawriter ADD MEMBER funcionario_municipal;
+GRANT SELECT, INSERT, UPDATE, DELETE ON SCHEMA::dbo TO funcionario_municipal;
+GRANT EXECUTE ON SCHEMA::dbo TO funcionario_municipal;
+PRINT '  ✓ Permisos otorgados a funcionario_municipal';
+
+-- Permisos en esquema DM si existe
+IF EXISTS (SELECT 1 FROM sys.schemas WHERE name = 'DM')
+BEGIN
+    GRANT SELECT, INSERT, UPDATE, DELETE ON SCHEMA::DM TO funcionario_municipal;
+    GRANT EXECUTE ON SCHEMA::DM TO funcionario_municipal;
+    PRINT '  ✓ Permisos en schema DM otorgados a funcionario_municipal';
+END
+
+-- Asignar usuarios a roles
+ALTER ROLE auditor ADD MEMBER usr_auditor;
+PRINT '   usr_auditor → rol auditor';
+
+ALTER ROLE funcionario_municipal ADD MEMBER usr_funcionario;
+PRINT '   usr_funcionario  rol funcionario_municipal';
+
 PRINT '';
-PRINT ' ESQUEMAS CON PERMISOS:';
-PRINT '   - dbo (ambos roles)';
-PRINT '   - DM (ambos roles - Data Mart)';
+PRINT ' DataMart CONFIGURADO';
 PRINT '';
+
+-- =============================================
+-- VERIFICACIÓN FINAL
+-- =============================================
+
+PRINT '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━';
+PRINT '    CONFIGURACIÓN COMPLETADA';
+PRINT '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━';
+
 GO
