@@ -1018,7 +1018,6 @@ BEGIN
         SELECT 
             df.detalle_factura_id,
             df.nombre AS descripcion,
-            df.referencia_servicio,
             df.cantidad,
             df.monto_unitario,
             df.descuento_linea,
