@@ -797,7 +797,7 @@ GO
 
 PRINT '';
 PRINT '========================================';
-PRINT '✓ STORED PROCEDURES - TRÁMITES Y PERMISOS';
+PRINT ' STORED PROCEDURES - TRÁMITES Y PERMISOS';
 PRINT '========================================';
 
 PRINT '';

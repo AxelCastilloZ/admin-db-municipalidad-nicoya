@@ -5,9 +5,7 @@
 -- EJECUTAR BACKUPS MANUALES INMEDIATOS
 -- Para generar archivos .bak que compartir
 -- ============================================
--- Ejecuta este script DESPUÉS de configurar los jobs automáticos
--- para tener backups disponibles desde YA
--- ============================================
+
 
 USE master;
 GO
@@ -40,7 +38,7 @@ WITH
     COMPRESSION,
     STATS = 10;
 
-PRINT '✓ Backup COMPLETO creado exitosamente';
+PRINT ' Backup COMPLETO creado exitosamente';
 PRINT '  Ubicación: ' + @RutaBackupFull;
 GO
 
@@ -62,7 +60,7 @@ ORDER BY bs.backup_finish_date DESC;
 RESTORE VERIFYONLY 
 FROM DISK = @RutaVerificar;
 
-PRINT '✓ Backup verificado correctamente - Sin errores';
+PRINT ' Backup verificado correctamente - Sin errores';
 GO
 
 -- ============================================
@@ -92,7 +90,6 @@ GO
 
 -- ============================================
 -- 4. CREAR BACKUP "PARA COMPARTIR"
--- (Copia con nombre fácil de identificar)
 -- ============================================
 PRINT '';
 PRINT 'Creando copia para compartir con el equipo...';
@@ -108,21 +105,3 @@ WITH
     STATS = 10;
 GO
 
-PRINT '✓ Backup "ParaCompartir.bak" creado exitosamente';
-PRINT '';
-PRINT '========================================';
-PRINT 'SIGUIENTE PASO: COMPARTIR CON EL EQUIPO';
-PRINT '========================================';
-PRINT '';
-PRINT 'Archivo a compartir:';
-PRINT 'C:\Backups_Nicoya\MunicipalidadNicoya_ParaCompartir.bak';
-PRINT '';
-PRINT 'Opciones para compartir:';
-PRINT '1. Google Drive';
-PRINT '2. OneDrive';
-PRINT '3. WhatsApp/Telegram (si es < 2GB)';
-PRINT '4. USB';
-PRINT '';
-PRINT 'Peso aproximado: Ver arriba en "Tamaño Comprimido"';
-PRINT '';
-GO

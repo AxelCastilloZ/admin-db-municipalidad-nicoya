@@ -1,5 +1,5 @@
 -- =============================================
--- PROCEDIMIENTOS ALMACENADOS - ACTUALIZACIÓN DATAMART
+-- PROCEDIMIENTOS ALMACENADOS -  DATAMART
 -- Automatización del proceso ETL para actualizaciones incrementales
 -- Base de datos: MunicipalidadNicoyaDataMart
 -- Origen: MunicipalidadNicoya

@@ -9,7 +9,7 @@ GO
 
 PRINT '';
 PRINT '========================================';
-PRINT '🔍 IMPLEMENTANDO AUDITORÍA';
+PRINT ' IMPLEMENTANDO AUDITORÍA';
 PRINT '   Tablas: Factura y Pago';
 PRINT '========================================';
 PRINT '';
@@ -17,7 +17,7 @@ PRINT '';
 -- =============================================
 -- PASO 1: Crear tabla de auditoría para FACTURA
 -- =============================================
-PRINT '📋 Creando tabla Factura_Auditoria...';
+PRINT ' Creando tabla Factura_Auditoria...';
 
 IF OBJECT_ID('dbo.Factura_Auditoria', 'U') IS NOT NULL
     DROP TABLE dbo.Factura_Auditoria;
@@ -54,13 +54,13 @@ CREATE TABLE dbo.Factura_Auditoria
 );
 GO
 
-PRINT '  ✓ Tabla Factura_Auditoria creada';
+PRINT '   Tabla Factura_Auditoria creada';
 PRINT '';
 
 -- =============================================
 -- PASO 2: Crear tabla de auditoría para PAGO
 -- =============================================
-PRINT '📋 Creando tabla Pago_Auditoria...';
+PRINT ' Creando tabla Pago_Auditoria...';
 
 IF OBJECT_ID('dbo.Pago_Auditoria', 'U') IS NOT NULL
     DROP TABLE dbo.Pago_Auditoria;
@@ -95,13 +95,13 @@ CREATE TABLE dbo.Pago_Auditoria
 );
 GO
 
-PRINT '  ✓ Tabla Pago_Auditoria creada';
+PRINT '   Tabla Pago_Auditoria creada';
 PRINT '';
 
 -- =============================================
 -- PASO 3: Trigger para INSERT en Factura
--- =============================================
-PRINT '🔧 Creando triggers para Factura...';
+-- ============================================
+PRINT ' Creando triggers para Factura...';
 
 DROP TRIGGER IF EXISTS dbo.trg_Factura_Auditoria_Insert;
 GO
@@ -142,7 +142,7 @@ BEGIN
 END
 GO
 
-PRINT '  ✓ trg_Factura_Auditoria_Insert creado';
+PRINT '   trg_Factura_Auditoria_Insert creado';
 
 -- =============================================
 -- PASO 4: Trigger para UPDATE en Factura
@@ -203,7 +203,7 @@ BEGIN
 END
 GO
 
-PRINT '  ✓ trg_Factura_Auditoria_Update creado';
+PRINT '   trg_Factura_Auditoria_Update creado';
 
 -- =============================================
 -- PASO 5: Trigger para DELETE en Factura
@@ -247,13 +247,13 @@ BEGIN
 END
 GO
 
-PRINT '  ✓ trg_Factura_Auditoria_Delete creado';
+PRINT '   trg_Factura_Auditoria_Delete creado';
 PRINT '';
 
 -- =============================================
 -- PASO 6: Trigger para INSERT en Pago
 -- =============================================
-PRINT '🔧 Creando triggers para Pago...';
+PRINT ' Creando triggers para Pago...';
 
 DROP TRIGGER IF EXISTS dbo.trg_Pago_Auditoria_Insert;
 GO
@@ -292,7 +292,7 @@ BEGIN
 END
 GO
 
-PRINT '  ✓ trg_Pago_Auditoria_Insert creado';
+PRINT '   trg_Pago_Auditoria_Insert creado';
 
 -- =============================================
 -- PASO 7: Trigger para UPDATE en Pago
@@ -349,7 +349,7 @@ BEGIN
 END
 GO
 
-PRINT '  ✓ trg_Pago_Auditoria_Update creado';
+PRINT '   trg_Pago_Auditoria_Update creado';
 
 -- =============================================
 -- PASO 8: Trigger para DELETE en Pago
@@ -391,13 +391,13 @@ BEGIN
 END
 GO
 
-PRINT '  ✓ trg_Pago_Auditoria_Delete creado';
+PRINT '   trg_Pago_Auditoria_Delete creado';
 PRINT '';
 
 -- =============================================
 -- PASO 9: Crear Stored Procedures de consulta
 -- =============================================
-PRINT '📦 Creando Stored Procedures de consulta...';
+PRINT ' Creando Stored Procedures de consulta...';
 
 -- SP: Ver historial completo de una factura
 DROP PROCEDURE IF EXISTS dbo.sp_Factura_ConsultarHistorial;
@@ -434,7 +434,7 @@ BEGIN
 END
 GO
 
-PRINT '  ✓ sp_Factura_ConsultarHistorial creado';
+PRINT '   sp_Factura_ConsultarHistorial creado';
 
 -- SP: Ver historial completo de un pago
 DROP PROCEDURE IF EXISTS dbo.sp_Pago_ConsultarHistorial;
@@ -469,7 +469,7 @@ BEGIN
 END
 GO
 
-PRINT '  ✓ sp_Pago_ConsultarHistorial creado';
+PRINT '   sp_Pago_ConsultarHistorial creado';
 
 -- SP: Ver auditoría por rango de fechas
 DROP PROCEDURE IF EXISTS dbo.sp_Auditoria_ConsultarPorFecha;
@@ -518,44 +518,6 @@ BEGIN
 END
 GO
 
-PRINT '  ✓ sp_Auditoria_ConsultarPorFecha creado';
+PRINT '   sp_Auditoria_ConsultarPorFecha creado';
 PRINT '';
 
--- =============================================
--- VERIFICACIÓN Y EJEMPLOS DE USO
--- =============================================
-PRINT '========================================';
-PRINT '✅ AUDITORÍA IMPLEMENTADA EXITOSAMENTE';
-PRINT '========================================';
-PRINT '';
-PRINT '📊 Resumen de componentes creados:';
-PRINT '  • Tablas de auditoría: 2';
-PRINT '    - Factura_Auditoria';
-PRINT '    - Pago_Auditoria';
-PRINT '  • Triggers: 6';
-PRINT '    - Factura: INSERT, UPDATE, DELETE';
-PRINT '    - Pago: INSERT, UPDATE, DELETE';
-PRINT '  • Stored Procedures: 3';
-PRINT '    - sp_Factura_ConsultarHistorial';
-PRINT '    - sp_Pago_ConsultarHistorial';
-PRINT '    - sp_Auditoria_ConsultarPorFecha';
-PRINT '';
-PRINT '🔍 Ejemplos de uso:';
-PRINT '';
-PRINT '-- Ver historial de cambios de factura 1:';
-PRINT 'EXEC sp_Factura_ConsultarHistorial @factura_id = 1;';
-PRINT '';
-PRINT '-- Ver historial de cambios de pago 1:';
-PRINT 'EXEC sp_Pago_ConsultarHistorial @pago_id = 1;';
-PRINT '';
-PRINT '-- Ver todos los cambios de hoy:';
-PRINT 'DECLARE @hoy_inicio DATETIME = CAST(CAST(GETDATE() AS DATE) AS DATETIME);';
-PRINT 'DECLARE @hoy_fin DATETIME = DATEADD(SECOND, -1, DATEADD(DAY, 1, @hoy_inicio));';
-PRINT 'EXEC sp_Auditoria_ConsultarPorFecha @fecha_inicio = @hoy_inicio, @fecha_fin = @hoy_fin;';
-PRINT '';
-PRINT '-- Consulta directa a las tablas:';
-PRINT 'SELECT * FROM Factura_Auditoria WHERE factura_id = 1 ORDER BY fecha_cambio DESC;';
-PRINT 'SELECT * FROM Pago_Auditoria WHERE pago_id = 1 ORDER BY fecha_cambio DESC;';
-PRINT '';
-PRINT '========================================';
-GO

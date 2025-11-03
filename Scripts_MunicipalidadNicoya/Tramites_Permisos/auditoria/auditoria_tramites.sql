@@ -1,7 +1,5 @@
 -- =============================================
--- AUDITORÍA DE TRÁMITE - VERSIÓN FINAL (SIN ERRORES)
--- Compatible con: Contribuyente (Física/Jurídica), Inmueble
--- SP: sp_Tramite_ConsultarHistorial, sp_Auditoria_Tramite_PorFecha
+-- AUDITORÍA DE TRÁMITE 
 -- =============================================
 
 USE MunicipalidadNicoya;
@@ -38,7 +36,7 @@ IF OBJECT_ID('dbo.Tramite_Auditoria', 'U') IS NOT NULL
     DROP TABLE dbo.Tramite_Auditoria;
 GO
 
-PRINT '  ✓ Limpieza completada';
+PRINT '  Limpieza completada';
 PRINT '';
 
 -- =============================================
@@ -70,7 +68,7 @@ BEGIN
 END
 GO
 
-PRINT '  ✓ fn_ObtenerNombreContribuyente creada';
+PRINT '  fn_ObtenerNombreContribuyente creada';
 PRINT '';
 
 -- =============================================
@@ -116,7 +114,7 @@ CREATE TABLE dbo.Tramite_Auditoria
 );
 GO
 
-PRINT '  ✓ Tabla creada';
+PRINT '   Tabla creada';
 PRINT '';
 
 -- =============================================
@@ -261,24 +259,10 @@ END
 GO
 
 
-PRINT '  ✓ SP creados: sp_Tramite_ConsultarHistorial, sp_Auditoria_Tramite_PorFecha';
+PRINT '  SP creados: sp_Tramite_ConsultarHistorial, sp_Auditoria_Tramite_PorFecha';
 PRINT '';
 
--- =============================================
--- VERIFICACIÓN FINAL
--- =============================================
-PRINT '========================================';
-PRINT '✅ AUDITORÍA COMPLETA - SIN ERRORES';
-PRINT '========================================';
-PRINT '';
-PRINT 'Ejemplos de uso:';
-PRINT '';
-PRINT 'EXEC sp_Tramite_ConsultarHistorial @tramite_id = 1;';
-PRINT '';
-PRINT 'DECLARE @hoy DATETIME = CAST(GETDATE() AS DATE);';
-PRINT 'EXEC sp_Auditoria_Tramite_PorFecha @fecha_inicio = @hoy, @fecha_fin = DATEADD(DAY,1,@hoy);';
-PRINT '';
-PRINT '========================================';
+
 GO   
 
 -- DECLARE @hoy DATETIME = CAST(GETDATE() AS DATE);

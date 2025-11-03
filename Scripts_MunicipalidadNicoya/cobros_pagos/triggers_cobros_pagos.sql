@@ -3,8 +3,6 @@
 -- Tabla: Detalle_factura
 -- Evento: AFTER INSERT, UPDATE, DELETE
 -- Descripción: Recalcula automáticamente monto_base y monto_total 
---              de la factura cuando se agregan, modifican o eliminan detalles
--- =============================================
 
 USE MunicipalidadNicoya;
 GO
@@ -69,7 +67,7 @@ BEGIN
 END
 GO
 
-PRINT '✓ Trigger trg_actualizar_monto_factura creado exitosamente';
+PRINT ' Trigger trg_actualizar_monto_factura creado exitosamente';
 GO
 
 
@@ -120,7 +118,7 @@ BEGIN
 END
 GO
 
-PRINT '✓ Trigger trg_actualizar_estado_factura creado exitosamente';
+PRINT ' Trigger trg_actualizar_estado_factura creado exitosamente';
 GO
 
 

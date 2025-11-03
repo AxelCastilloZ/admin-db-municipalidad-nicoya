@@ -1,17 +1,13 @@
 ﻿
 
 
--- =============================================
--- SCRIPT DE LIMPIEZA: MÓDULO PAGOS Y COBROS
--- Descripción: Elimina TODOS los SPs para poder recrearlos desde cero
--- =============================================
 
 USE MunicipalidadNicoya;
 GO
 
 PRINT '';
 PRINT '========================================';
-PRINT '🧹 INICIANDO LIMPIEZA DE STORED PROCEDURES';
+PRINT ' INICIANDO LIMPIEZA DE STORED PROCEDURES';
 PRINT '   Módulo: PAGOS Y COBROS';
 PRINT '========================================';
 PRINT '';
@@ -19,96 +15,88 @@ PRINT '';
 -- =============================================
 -- MÓDULO: RUBRO (5 SPs)
 -- =============================================
-PRINT '📦 Eliminando SPs del módulo RUBRO...';
+PRINT ' Eliminando SPs del módulo RUBRO...';
 
 DROP PROCEDURE IF EXISTS dbo.sp_insertar_rubro;
-PRINT '  ✓ sp_insertar_rubro eliminado';
+PRINT '   sp_insertar_rubro eliminado';
 
 DROP PROCEDURE IF EXISTS dbo.sp_consultar_rubro_por_id;
-PRINT '  ✓ sp_consultar_rubro_por_id eliminado';
+PRINT '   sp_consultar_rubro_por_id eliminado';
 
 DROP PROCEDURE IF EXISTS dbo.sp_listar_rubros;
-PRINT '  ✓ sp_listar_rubros eliminado';
+PRINT '  sp_listar_rubros eliminado';
 
 DROP PROCEDURE IF EXISTS dbo.sp_actualizar_rubro;
-PRINT '  ✓ sp_actualizar_rubro eliminado';
+PRINT '   sp_actualizar_rubro eliminado';
 
 DROP PROCEDURE IF EXISTS dbo.sp_eliminar_rubro;
-PRINT '  ✓ sp_eliminar_rubro eliminado';
+PRINT '  sp_eliminar_rubro eliminado';
 
 PRINT '';
 
 -- =============================================
 -- MÓDULO: FACTURA (5 SPs)
 -- =============================================
-PRINT '📦 Eliminando SPs del módulo FACTURA...';
+PRINT ' Eliminando SPs del módulo FACTURA...';
 
 DROP PROCEDURE IF EXISTS dbo.sp_emitir_factura;
-PRINT '  ✓ sp_emitir_factura eliminado';
+PRINT '   sp_emitir_factura eliminado';
 
 DROP PROCEDURE IF EXISTS dbo.sp_consultar_factura_por_id;
-PRINT '  ✓ sp_consultar_factura_por_id eliminado';
+PRINT '   sp_consultar_factura_por_id eliminado';
 
 DROP PROCEDURE IF EXISTS dbo.sp_listar_facturas;
-PRINT '  ✓ sp_listar_facturas eliminado';
+PRINT '   sp_listar_facturas eliminado';
 
 DROP PROCEDURE IF EXISTS dbo.sp_actualizar_factura;
-PRINT '  ✓ sp_actualizar_factura eliminado';
+PRINT '   sp_actualizar_factura eliminado';
 
 DROP PROCEDURE IF EXISTS dbo.sp_cancelar_factura;
-PRINT '  ✓ sp_cancelar_factura eliminado';
+PRINT '   sp_cancelar_factura eliminado';
 
 PRINT '';
 
 -- =============================================
 -- MÓDULO: DETALLE_FACTURA (4 SPs)
 -- =============================================
-PRINT '📦 Eliminando SPs del módulo DETALLE_FACTURA...';
+PRINT ' Eliminando SPs del módulo DETALLE_FACTURA...';
 
 DROP PROCEDURE IF EXISTS dbo.sp_insertar_detalle_factura;
-PRINT '  ✓ sp_insertar_detalle_factura eliminado';
+PRINT '   sp_insertar_detalle_factura eliminado';
 
 DROP PROCEDURE IF EXISTS dbo.sp_actualizar_detalle_factura;
-PRINT '  ✓ sp_actualizar_detalle_factura eliminado';
+PRINT '   sp_actualizar_detalle_factura eliminado';
 
 DROP PROCEDURE IF EXISTS dbo.sp_eliminar_detalle_factura;
-PRINT '  ✓ sp_eliminar_detalle_factura eliminado';
+PRINT '   sp_eliminar_detalle_factura eliminado';
 
 DROP PROCEDURE IF EXISTS dbo.sp_listar_detalles_por_factura;
-PRINT '  ✓ sp_listar_detalles_por_factura eliminado';
+PRINT '   sp_listar_detalles_por_factura eliminado';
 
 PRINT '';
 
 -- =============================================
 -- MÓDULO: PAGO (4 SPs)
 -- =============================================
-PRINT '📦 Eliminando SPs del módulo PAGO...';
+PRINT ' Eliminando SPs del módulo PAGO...';
 
 DROP PROCEDURE IF EXISTS dbo.sp_registrar_pago;
-PRINT '  ✓ sp_registrar_pago eliminado';
+PRINT '   sp_registrar_pago eliminado';
 
 DROP PROCEDURE IF EXISTS dbo.sp_consultar_pago_por_id;
-PRINT '  ✓ sp_consultar_pago_por_id eliminado';
+PRINT '   sp_consultar_pago_por_id eliminado';
 
 DROP PROCEDURE IF EXISTS dbo.sp_listar_pagos_por_factura;
-PRINT '  ✓ sp_listar_pagos_por_factura eliminado';
+PRINT '   sp_listar_pagos_por_factura eliminado';
 
 DROP PROCEDURE IF EXISTS dbo.sp_visualizar_historial_pagos;
-PRINT '  ✓ sp_visualizar_historial_pagos eliminado';
+PRINT '   sp_visualizar_historial_pagos eliminado';
 
 PRINT '';
 PRINT '========================================';
-PRINT '✅ LIMPIEZA COMPLETADA';
+PRINT ' LIMPIEZA COMPLETADA';
 PRINT '   Total de SPs eliminados: 18';
 PRINT '';
-PRINT '   Módulos limpiados:';
-PRINT '   - Rubro (5 SPs)';
-PRINT '   - Factura (5 SPs)';
-PRINT '   - Detalle_Factura (4 SPs)';
-PRINT '   - Pago (4 SPs)';
-PRINT '';
-PRINT '🚀 Ahora ejecuta el script completo de creación';
-PRINT '========================================';
 GO
 
 -- =============================================
@@ -121,7 +109,6 @@ USE MunicipalidadNicoya;
 GO
 
 -- =============================================
--- SP1: sp_insertar_rubro (CORREGIDO)
 -- Descripción: Inserta un nuevo rubro en el sistema
 -- =============================================
 
@@ -136,7 +123,7 @@ CREATE PROCEDURE dbo.sp_insertar_rubro
     @nombre VARCHAR(100),
     @descripcion VARCHAR(300) = NULL,
     @periodicidad VARCHAR(20) = NULL,
-    @tarifa_base DECIMAL(12,2) = 0,  -- ✅ AGREGADO
+    @tarifa_base DECIMAL(12,2) = 0,  
     @aplica_recargo BIT = 0,
     @aplica_intereses BIT = 0,
     @tasa_interes DECIMAL(5,2) = 0,
@@ -190,7 +177,7 @@ BEGIN
             nombre, 
             descripcion, 
             periodicidad,
-            tarifa_base,  -- ✅ AGREGADO
+            tarifa_base,
             vigencia,
             aplica_recargo, 
             aplica_intereses, 
@@ -201,8 +188,8 @@ BEGIN
             @nombre,
             @descripcion,
             @periodicidad,
-            @tarifa_base,  -- ✅ AGREGADO
-            1, -- Vigencia activa por defecto
+            @tarifa_base,
+            1, -- Vigencia activa
             @aplica_recargo,
             @aplica_intereses,
             @tasa_interes,
@@ -227,7 +214,7 @@ BEGIN
 END
 GO
 
-PRINT '✅ SP: sp_insertar_rubro CORREGIDO - Ahora incluye @tarifa_base';
+PRINT ' SP: sp_insertar_rubro CORREGIDO - Ahora incluye @tarifa_base';
 GO
 
 -- =============================================
@@ -273,7 +260,7 @@ BEGIN
 END
 GO
 
-PRINT '✓ SP: sp_consultar_rubro_por_id creado';
+PRINT 'SP: sp_consultar_rubro_por_id creado';
 GO
 
 -- =============================================
@@ -314,13 +301,13 @@ BEGIN
             AND (@periodicidad IS NULL OR periodicidad = @periodicidad)
             AND (@nombre_busqueda IS NULL OR nombre LIKE '%' + @nombre_busqueda + '%');
         
-        -- ✅ AGREGAR tarifa_base al SELECT
+        --  AGREGAR tarifa_base al SELECT
         SELECT 
             rubro_id,
             nombre,
             descripcion,
             periodicidad,
-            tarifa_base,  -- ✅ AGREGADO
+            tarifa_base,  
             vigencia,
             aplica_recargo,
             aplica_intereses,
@@ -347,7 +334,7 @@ BEGIN
 END
 GO
 
-PRINT '✅ sp_listar_rubros CORREGIDO - Ahora incluye tarifa_base en SELECT';
+PRINT ' sp_listar_rubros completado';
 GO
 
 
@@ -355,10 +342,8 @@ GO
 
 
 -- =============================================
--- SP MEJORADO: sp_actualizar_rubro
--- Descripción: Actualiza datos de un rubro (incluye reactivación)
--- MEJORA: Agregado parámetro @tarifa_base para actualizar
--- =============================================
+-- SP : sp_actualizar_rubro
+
 
 USE MunicipalidadNicoya;
 GO
@@ -423,7 +408,7 @@ BEGIN
             THROW 50003, 'La periodicidad debe ser: Mensual, Trimestral, Anual o Único.', 1;
         END
         
-        -- ✅ 5. Validar tarifa_base >= 0 (si se está actualizando)
+        --  5. Validar tarifa_base >= 0 (si se está actualizando)
         IF @tarifa_base IS NOT NULL AND @tarifa_base < 0
         BEGIN
             THROW 50008, 'La tarifa base no puede ser negativa.', 1;
@@ -510,7 +495,7 @@ BEGIN
         -- =============================================
         
         PRINT '';
-        PRINT '✅ Rubro actualizado exitosamente';
+        PRINT ' Rubro actualizado exitosamente';
         PRINT '   ID: ' + CAST(@rubro_id AS VARCHAR(10));
         PRINT '   Nombre: ' + ISNULL(@nombre, @nombre_actual);
         
@@ -559,16 +544,7 @@ GO
 
 PRINT '';
 PRINT '========================================';
-PRINT '✅ sp_actualizar_rubro MEJORADO';
-PRINT '   Cambios realizados:';
-PRINT '   + Agregado parámetro @tarifa_base';
-PRINT '   + Validación tarifa_base >= 0';
-PRINT '   + Advertencia si hay servicios activos';
-PRINT '   + Advertencia al cambiar tarifa_base';
-PRINT '   + Advertencia al desactivar rubro';
-PRINT '   + Mensajes informativos mejorados';
-PRINT '   + Retorna el rubro actualizado';
-PRINT '========================================';
+PRINT ' sp_actualizar_rubro MEJORADO';
 GO
 
 -- =============================================
@@ -619,20 +595,13 @@ BEGIN
 END
 GO
 
-PRINT '✓ SP: sp_eliminar_rubro creado';
+PRINT ' SP: sp_eliminar_rubro creado';
 GO
 
 PRINT '';
 PRINT '========================================';
-PRINT '✓ STORED PROCEDURES - TABLA RUBRO';
-PRINT '  Todos los SPs creados exitosamente:';
-PRINT '  - sp_insertar_rubro';
-PRINT '  - sp_consultar_rubro_por_id';
-PRINT '  - sp_listar_rubros';
-PRINT '  - sp_actualizar_rubro';
-PRINT '  - sp_actualizar_rubro';
-PRINT '  - sp_eliminar_rubro';
-PRINT '========================================';
+PRINT ' STORED PROCEDURES - TABLA RUBRO';
+
 GO
 
 
@@ -652,24 +621,12 @@ GO
 
 
 
--- Script: Stored Procedures - Tabla Factura
-
-
--- =============================================
--- SP1: sp_emitir_factura
--- Descripción: Emite una nueva factura con autogeneración de número
--- =============================================
--- =============================================
-
--- Descripción: Emite una nueva factura con autogeneración de número
--- =============================================
 
 USE MunicipalidadNicoya;
 GO
 
 -- =============================================
--- SP CORREGIDO: sp_emitir_factura
--- MEJORA: Validación flexible (tramite_id O inmueble_id O ambos)
+-- SP : sp_emitir_factura
 -- =============================================
 
 DROP PROCEDURE IF EXISTS dbo.sp_emitir_factura;
@@ -694,7 +651,7 @@ BEGIN
         -- VALIDACIONES DE NEGOCIO
         -- =============================================
         
-        -- 1. ✅ VALIDACIÓN FLEXIBLE: Al menos uno debe tener valor
+        -- 1.  VALIDACIÓN FLEXIBLE: Al menos uno debe tener valor
         IF @tramite_id IS NULL AND @inmueble_id IS NULL
         BEGIN
             THROW 50101, 'Debe especificar al menos tramite_id O inmueble_id (o ambos).', 1;
@@ -708,8 +665,8 @@ BEGIN
                 THROW 50102, 'El tramite_id especificado no existe.', 1;
             END
             
-            -- ✅ Mensaje informativo
-            PRINT '  ℹ️  Factura asociada a TRÁMITE ID: ' + CAST(@tramite_id AS VARCHAR(10));
+            --  Mensaje informativo
+            PRINT '    Factura asociada a TRÁMITE ID: ' + CAST(@tramite_id AS VARCHAR(10));
         END
         
         -- 3. Validar que inmueble_id existe (si tiene valor)
@@ -720,14 +677,14 @@ BEGIN
                 THROW 50103, 'El inmueble_id especificado no existe.', 1;
             END
             
-            -- ✅ Mensaje informativo
-            PRINT '  ℹ️  Factura asociada a INMUEBLE ID: ' + CAST(@inmueble_id AS VARCHAR(10));
+            --  Mensaje informativo
+            PRINT '    Factura asociada a INMUEBLE ID: ' + CAST(@inmueble_id AS VARCHAR(10));
         END
         
-        -- 4. ✅ CASO ESPECIAL: Ambos presentes
+        -- 4.  CASO ESPECIAL: Ambos presentes
         IF @tramite_id IS NOT NULL AND @inmueble_id IS NOT NULL
         BEGIN
-            PRINT '  ⚠️  ADVERTENCIA: Factura tiene AMBOS (trámite + inmueble)';
+            PRINT '   ADVERTENCIA: Factura tiene AMBOS (trámite + inmueble)';
             PRINT '     Recomendado solo para casos especiales (ej. cambio de uso con costo)';
         END
         
@@ -797,8 +754,8 @@ BEGIN
             @intereses,
             @monto_total,
             'Pendiente',
-            @tramite_id,    -- ✅ Puede ser NULL
-            @inmueble_id    -- ✅ Puede ser NULL
+            @tramite_id,    --  Puede ser NULL
+            @inmueble_id    --  Puede ser NULL
         );
         
         SET @factura_id = SCOPE_IDENTITY();
@@ -811,7 +768,7 @@ BEGIN
         
         PRINT '';
         PRINT '========================================';
-        PRINT '✅ FACTURA EMITIDA EXITOSAMENTE';
+        PRINT ' FACTURA EMITIDA EXITOSAMENTE';
         PRINT '========================================';
         PRINT '   Número: ' + @numero_factura;
         PRINT '   ID: ' + CAST(@factura_id AS VARCHAR(10));
@@ -820,23 +777,19 @@ BEGIN
         
         IF @tramite_id IS NOT NULL AND @inmueble_id IS NOT NULL
         BEGIN
-            PRINT '   🔗 Trámite ID: ' + CAST(@tramite_id AS VARCHAR(10));
-            PRINT '   🏠 Inmueble ID: ' + CAST(@inmueble_id AS VARCHAR(10));
+            PRINT '   Trámite ID: ' + CAST(@tramite_id AS VARCHAR(10));
+            PRINT '   Inmueble ID: ' + CAST(@inmueble_id AS VARCHAR(10));
         END
         ELSE IF @tramite_id IS NOT NULL
         BEGIN
-            PRINT '   🔗 Origen: TRÁMITE (ID: ' + CAST(@tramite_id AS VARCHAR(10)) + ')';
+            PRINT '    Origen: TRÁMITE (ID: ' + CAST(@tramite_id AS VARCHAR(10)) + ')';
         END
         ELSE IF @inmueble_id IS NOT NULL
         BEGIN
-            PRINT '   🏠 Origen: INMUEBLE (ID: ' + CAST(@inmueble_id AS VARCHAR(10)) + ')';
+            PRINT '    Origen: INMUEBLE (ID: ' + CAST(@inmueble_id AS VARCHAR(10)) + ')';
         END
         
-        PRINT '';
-        PRINT '   ⚠️  IMPORTANTE:';
-        PRINT '   - Agregue detalles con sp_insertar_detalle_factura';
-        PRINT '   - El monto_base se calculará automáticamente';
-        PRINT '========================================';
+  
         PRINT '';
         
     END TRY
@@ -851,18 +804,7 @@ GO
 
 PRINT '';
 PRINT '========================================';
-PRINT '✅ sp_emitir_factura CORREGIDO';
-PRINT '   VALIDACIÓN DE NEGOCIO:';
-PRINT '   ✓ tramite_id: OPCIONAL';
-PRINT '   ✓ inmueble_id: OPCIONAL';
-PRINT '   ✓ Requisito: AL MENOS UNO debe tener valor';
-PRINT '   ✓ Permite: AMBOS con advertencia';
-PRINT '';
-PRINT '   CASOS DE USO:';
-PRINT '   1. Solo trámite: Permisos sin inmueble asociado';
-PRINT '   2. Solo inmueble: Servicios municipales recurrentes';
-PRINT '   3. Ambos: Trámites con inmueble (ej. cambio de uso)';
-PRINT '========================================';
+PRINT '12 sp_emitir_factura ';
 GO
 
 
@@ -943,7 +885,6 @@ BEGIN
         
         -- =============================================
         -- RESULTSET 2: Contribuyentes asociados
-        -- ✅ SOLUCIÓN: Usar lógica de prioridad
         -- Si tiene tramite_id → solo mostrar contribuyente del trámite
         -- Si solo tiene inmueble_id → mostrar contribuyentes del inmueble
         -- =============================================
@@ -1038,7 +979,7 @@ BEGIN
 END
 GO
 
-PRINT '✅ sp_consultar_factura_por_id CORREGIDO - Prioridad: Tramite > Inmueble';
+PRINT ' sp_consultar_factura_por_id CORREGIDO - Prioridad: Tramite > Inmueble';
 GO
 
 
@@ -1046,7 +987,7 @@ GO
 
 
 -- =============================================
--- SOLUCIÓN DEFINITIVA: sp_listar_facturas
+-- Sp: sp_listar_facturas
 -- =============================================
 
 USE MunicipalidadNicoya;
@@ -1080,7 +1021,7 @@ BEGIN
         -- Calcular offset
         DECLARE @offset INT = (@page_number - 1) * @page_size;
         
-        -- ✅ SOLUCIÓN: Usar COUNT(*) OVER() dentro del CTE
+        --  SOLUCIÓN: Usar COUNT(*) OVER() dentro del CTE
         ;WITH FacturasConInfo AS (
             SELECT 
                 f.factura_id,
@@ -1121,7 +1062,7 @@ BEGIN
                     ELSE NULL
                 END AS contribuyente_id,
                 
-                -- ✅ Contar total de registros con ventana
+                --  Contar total de registros con ventana
                 COUNT(*) OVER() AS total_registros
                 
             FROM dbo.Factura f
@@ -1150,7 +1091,7 @@ BEGIN
                 )
         )
         
-        -- ✅ Ahora usar el CTE directamente sin SELECT intermedio
+        --  Ahora usar el CTE directamente sin SELECT intermedio
         SELECT 
             fci.factura_id,
             fci.numero_factura,
@@ -1203,11 +1144,7 @@ END
 GO
 
 PRINT '';
-PRINT '✅✅✅ sp_listar_facturas - VERSIÓN FINAL CORREGIDA ✅✅✅';
-PRINT '  Cambios:';
-PRINT '  1. Eliminado SELECT intermedio que rompía el scope del CTE';
-PRINT '  2. Usado COUNT(*) OVER() dentro del CTE';
-PRINT '  3. total_registros ahora viene directamente del CTE';
+PRINT ' sp_listar_facturas ';
 GO
 
 
@@ -1236,7 +1173,6 @@ CREATE PROCEDURE dbo.sp_actualizar_factura
     @fecha_emision DATETIME = NULL,
     @fecha_vencimiento DATE = NULL,
     @periodo DATE = NULL,
-    -- ❌ REMOVIDO: @monto_base DECIMAL(12,2) = NULL,
     @recargo DECIMAL(12,2) = NULL,
     @intereses DECIMAL(12,2) = NULL,
     @estado_factura VARCHAR(20) = NULL
@@ -1378,21 +1314,12 @@ BEGIN
 END
 GO
 
-PRINT '✓ SP: sp_actualizar_factura creado (CORREGIDO)';
+PRINT ' SP: sp_actualizar_factura creado (CORREGIDO)';
 GO
 
 PRINT '';
 PRINT '========================================';
-PRINT '✓ STORED PROCEDURE - sp_actualizar_factura';
-PRINT '  Restricciones implementadas:';
-PRINT '  - Solo estados Pendiente/Vencida';
-PRINT '  - Cambios de estado controlados';
-PRINT '  - NO permite cambiar tramite_id/inmueble_id';
-PRINT '  - NO permite cambiar monto_base (se calcula desde detalles)';
-PRINT '  - Valida que NO tenga pagos antes de actualizar recargo/intereses';
-PRINT '  - Recalcula monto_total automáticamente';
-PRINT '  - Actualización selectiva de campos';
-PRINT '========================================';
+PRINT ' STORED PROCEDURE - sp_actualizar_factura';
 GO
 
 
@@ -1477,13 +1404,12 @@ BEGIN
         END
         
         -- 9. Cambiar estado a Cancelada
-        -- ✅ El trigger trg_Factura_Auditoria_Update se encarga automáticamente
+        --  El trigger trg_Factura_Auditoria_Update se encarga automáticamente
         --    de registrar este cambio en Factura_Auditoria
         UPDATE dbo.Factura
         SET estado_factura = 'Cancelada'
         WHERE factura_id = @factura_id;
         
-        -- ❌ ELIMINADO: INSERT manual a dbo.Auditoria
         -- Los triggers automáticos ya registran los cambios
         
         COMMIT TRANSACTION;
@@ -1514,14 +1440,14 @@ GO
 
 PRINT '';
 PRINT '========================================';
-PRINT '✓ STORED PROCEDURE - sp_cancelar_factura';
+PRINT ' STORED PROCEDURE - sp_cancelar_factura';
 GO
 
 
 
 PRINT '';
 PRINT '========================================';
-PRINT '✓✓✓ MÓDULO FACTURA COMPLETADO ✓✓✓';
+PRINT ' MÓDULO FACTURA COMPLETADO ';
 GO
 
 
@@ -1595,9 +1521,6 @@ BEGIN
             THROW 50154, 'El rubro especificado no existe o no está activo', 1;
         END
         
-        -- =============================================
-        -- ✅ MEJORA: AUTOCOMPLETAR DATOS DESDE RUBRO
-        -- =============================================
         
         DECLARE @rubro_nombre VARCHAR(100);
         DECLARE @rubro_tarifa_base DECIMAL(12,2);
@@ -1650,7 +1573,7 @@ BEGIN
         -- 7. Si monto_unitario = 0 y no hay tarifa_base, advertir
         IF @monto_unitario = 0 AND @rubro_tarifa_base = 0
         BEGIN
-            PRINT '  ⚠️  ADVERTENCIA: Insertando detalle con monto ₡0.00';
+            PRINT '    ADVERTENCIA: Insertando detalle con monto ₡0.00';
             PRINT '     Asegúrese de que esto sea correcto.';
         END
         
@@ -1860,8 +1783,6 @@ BEGIN
             fecha_servicio = COALESCE(@fecha_servicio, fecha_servicio)
         WHERE detalle_factura_id = @detalle_factura_id;
         
-        -- =============================================
-        -- NOTA: El trigger trg_actualizar_monto_factura
         
         COMMIT TRANSACTION;
         
@@ -2080,7 +2001,7 @@ BEGIN
 END
 GO
 
-PRINT '✓ SP sp_listar_detalles_por_factura creado exitosamente';
+PRINT ' SP sp_listar_detalles_por_factura creado exitosamente';
 GO
 
 
@@ -2155,7 +2076,7 @@ BEGIN
             THROW 50205, 'El monto pagado debe ser mayor a cero', 1;
         END
         
-        -- 7. Validar que monto_pagado = monto_total (EXACTO)
+        -- 7. Validar que monto_pagado = monto_total 
         IF @monto_pagado <> @monto_total_factura
         BEGIN
             DECLARE @mensaje_monto NVARCHAR(500);
@@ -2222,10 +2143,7 @@ BEGIN
         
         SET @pago_id = SCOPE_IDENTITY();
         
-        -- =============================================
-        -- NOTA: El trigger trg_actualizar_estado_factura
-        -- cambiará automáticamente el estado a 'Pagada'
-        -- =============================================
+     
         
         COMMIT TRANSACTION;
         
@@ -2264,15 +2182,7 @@ BEGIN
 END
 GO
 
-PRINT '';
-PRINT '========================================';
-PRINT '✅ sp_registrar_pago RESTAURADO';
-PRINT '   Versión: ORIGINAL (sin cálculo automático)';
-PRINT '   Función: Solo registra pagos';
-PRINT '   Validación: monto_pagado = monto_total';
-PRINT '   Recargos/Intereses: Calculados por Job o manualmente';
-PRINT '========================================';
-GO
+
 
 
 
@@ -2410,7 +2320,7 @@ BEGIN
 END
 GO
 
-PRINT '✓ SP sp_consultar_pago_por_id creado exitosamente';
+PRINT ' SP sp_consultar_pago_por_id creado exitosamente';
 GO
 
 
@@ -2424,7 +2334,6 @@ GO
 -- =============================================
 -- SP: sp_listar_pagos_por_factura
 -- Descripción: Lista todos los pagos de una factura específica
--- Nota: Actualmente solo habrá 1 pago por factura (pagos totales)
 -- =============================================
 
 USE MunicipalidadNicoya;
@@ -2474,7 +2383,7 @@ BEGIN
         WHERE p.factura_id = @factura_id
         ORDER BY p.fecha_pago DESC, p.pago_id DESC;
         
-        -- Si no hay pagos, retorna conjunto vacío (0 filas)
+        -- Si no hay pagos, retorna conjunto vacío 
         
     END TRY
     BEGIN CATCH
@@ -2483,7 +2392,7 @@ BEGIN
 END
 GO
 
-PRINT '✓ SP sp_listar_pagos_por_factura creado exitosamente';
+PRINT ' SP sp_listar_pagos_por_factura creado exitosamente';
 GO
 
 
@@ -2672,7 +2581,7 @@ BEGIN
 END
 GO
 
-PRINT '✓ SP sp_visualizar_historial_pagos creado exitosamente con correcciones de tipos';
+PRINT ' SP sp_visualizar_historial_pagos creado exitosamente con correcciones de tipos';
 GO
 
 
