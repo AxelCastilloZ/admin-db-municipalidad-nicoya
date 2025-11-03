@@ -918,7 +918,9 @@ INSERT INTO dbo.Tipo_Tramite (nombre_tipo) VALUES
 ('Uso de Suelo'),
 ('Patente Comercial'),
 ('Cambio de Uso de Propiedad'),
-('Movimiento de Tierras');
+('Movimiento de Tierras'),
+('Permiso para Transporte de Materiales'),
+('Permiso para Venta de Alcohol');
 
 PRINT ' Tipos de trámite insertados: ' + CAST(@@ROWCOUNT AS VARCHAR(10));
 GO
@@ -943,7 +945,9 @@ INSERT INTO dbo.Requisito (nombre, descripcion) VALUES
 ('Comprobante de pago', 'Comprobante de cancelación de derechos municipales.'),
 ('Permiso sanitario', 'Permiso de funcionamiento sanitario vigente.'),
 ('Declaración jurada', 'Declaración jurada de veracidad de la información aportada.'),
-('Carta de autorización', 'Carta de autorización del propietario (si aplica).');
+('Carta de autorización', 'Carta de autorización del propietario (si aplica).'),
+('Licencia de conducir', 'Licencia de conducir vigente'),
+('Póliza de seguro vigente', 'Póliza de seguro al día');
 
 PRINT '✓ Requisitos insertados: ' + CAST(@@ROWCOUNT AS VARCHAR(10));
 GO
@@ -967,7 +971,14 @@ FROM (VALUES
     ('Patente Comercial', 'Formulario de solicitud'),
     ('Patente Comercial', 'Copia de cédula'),
     ('Patente Comercial', 'Permiso sanitario'),
-    ('Patente Comercial', 'Comprobante de pago')
+    ('Patente Comercial', 'Comprobante de pago'),
+    ('Permiso para Transporte de Materiales', 'Formulario de solicitud'),
+    ('Permiso para Transporte de Materiales', 'Copia de cédula'),
+    ('Permiso para Transporte de Materiales', 'Licencia de conducir'),
+    ('Permiso para Transporte de Materiales', 'Póliza de seguro vigente'),
+	('Permiso para Venta de Alcohol', 'Formulario de solicitud'),
+    ('Permiso para Venta de Alcohol', 'Copia de cédula'),
+    ('Permiso para Venta de Alcohol', 'Permiso sanitario')
 ) AS V(tipo_nombre, req_nombre)
 JOIN Tipo_Tramite tt ON tt.nombre_tipo = V.tipo_nombre
 JOIN Requisito r ON r.nombre = V.req_nombre;
