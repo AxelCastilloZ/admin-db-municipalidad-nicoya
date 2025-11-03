@@ -544,7 +544,7 @@ GO
 
 PRINT '';
 PRINT '========================================';
-PRINT '✅ sp_actualizar_rubro MEJORADO';
+PRINT ' sp_actualizar_rubro MEJORADO';
 GO
 
 -- =============================================
@@ -885,7 +885,6 @@ BEGIN
         
         -- =============================================
         -- RESULTSET 2: Contribuyentes asociados
-        -- ✅ SOLUCIÓN: Usar lógica de prioridad
         -- Si tiene tramite_id → solo mostrar contribuyente del trámite
         -- Si solo tiene inmueble_id → mostrar contribuyentes del inmueble
         -- =============================================
@@ -988,7 +987,7 @@ GO
 
 
 -- =============================================
--- SOLUCIÓN DEFINITIVA: sp_listar_facturas
+-- Sp: sp_listar_facturas
 -- =============================================
 
 USE MunicipalidadNicoya;
@@ -1063,7 +1062,7 @@ BEGIN
                     ELSE NULL
                 END AS contribuyente_id,
                 
-                -- ✅ Contar total de registros con ventana
+                --  Contar total de registros con ventana
                 COUNT(*) OVER() AS total_registros
                 
             FROM dbo.Factura f
@@ -1448,7 +1447,7 @@ GO
 
 PRINT '';
 PRINT '========================================';
-PRINT '✓✓✓ MÓDULO FACTURA COMPLETADO ✓✓✓';
+PRINT ' MÓDULO FACTURA COMPLETADO ';
 GO
 
 
@@ -1522,9 +1521,6 @@ BEGIN
             THROW 50154, 'El rubro especificado no existe o no está activo', 1;
         END
         
-        -- =============================================
-        -- ✅ MEJORA: AUTOCOMPLETAR DATOS DESDE RUBRO
-        -- =============================================
         
         DECLARE @rubro_nombre VARCHAR(100);
         DECLARE @rubro_tarifa_base DECIMAL(12,2);
@@ -1577,7 +1573,7 @@ BEGIN
         -- 7. Si monto_unitario = 0 y no hay tarifa_base, advertir
         IF @monto_unitario = 0 AND @rubro_tarifa_base = 0
         BEGIN
-            PRINT '  ⚠️  ADVERTENCIA: Insertando detalle con monto ₡0.00';
+            PRINT '    ADVERTENCIA: Insertando detalle con monto ₡0.00';
             PRINT '     Asegúrese de que esto sea correcto.';
         END
         
@@ -1787,8 +1783,6 @@ BEGIN
             fecha_servicio = COALESCE(@fecha_servicio, fecha_servicio)
         WHERE detalle_factura_id = @detalle_factura_id;
         
-        -- =============================================
-        -- NOTA: El trigger trg_actualizar_monto_factura
         
         COMMIT TRANSACTION;
         
@@ -2007,7 +2001,7 @@ BEGIN
 END
 GO
 
-PRINT '✓ SP sp_listar_detalles_por_factura creado exitosamente';
+PRINT ' SP sp_listar_detalles_por_factura creado exitosamente';
 GO
 
 
@@ -2082,7 +2076,7 @@ BEGIN
             THROW 50205, 'El monto pagado debe ser mayor a cero', 1;
         END
         
-        -- 7. Validar que monto_pagado = monto_total (EXACTO)
+        -- 7. Validar que monto_pagado = monto_total 
         IF @monto_pagado <> @monto_total_factura
         BEGIN
             DECLARE @mensaje_monto NVARCHAR(500);
@@ -2149,10 +2143,7 @@ BEGIN
         
         SET @pago_id = SCOPE_IDENTITY();
         
-        -- =============================================
-        -- NOTA: El trigger trg_actualizar_estado_factura
-        -- cambiará automáticamente el estado a 'Pagada'
-        -- =============================================
+     
         
         COMMIT TRANSACTION;
         
@@ -2191,15 +2182,7 @@ BEGIN
 END
 GO
 
-PRINT '';
-PRINT '========================================';
-PRINT '✅ sp_registrar_pago RESTAURADO';
-PRINT '   Versión: ORIGINAL (sin cálculo automático)';
-PRINT '   Función: Solo registra pagos';
-PRINT '   Validación: monto_pagado = monto_total';
-PRINT '   Recargos/Intereses: Calculados por Job o manualmente';
-PRINT '========================================';
-GO
+
 
 
 
@@ -2337,7 +2320,7 @@ BEGIN
 END
 GO
 
-PRINT '✓ SP sp_consultar_pago_por_id creado exitosamente';
+PRINT ' SP sp_consultar_pago_por_id creado exitosamente';
 GO
 
 
@@ -2351,7 +2334,6 @@ GO
 -- =============================================
 -- SP: sp_listar_pagos_por_factura
 -- Descripción: Lista todos los pagos de una factura específica
--- Nota: Actualmente solo habrá 1 pago por factura (pagos totales)
 -- =============================================
 
 USE MunicipalidadNicoya;
@@ -2401,7 +2383,7 @@ BEGIN
         WHERE p.factura_id = @factura_id
         ORDER BY p.fecha_pago DESC, p.pago_id DESC;
         
-        -- Si no hay pagos, retorna conjunto vacío (0 filas)
+        -- Si no hay pagos, retorna conjunto vacío 
         
     END TRY
     BEGIN CATCH
@@ -2410,7 +2392,7 @@ BEGIN
 END
 GO
 
-PRINT '✓ SP sp_listar_pagos_por_factura creado exitosamente';
+PRINT ' SP sp_listar_pagos_por_factura creado exitosamente';
 GO
 
 
@@ -2599,7 +2581,7 @@ BEGIN
 END
 GO
 
-PRINT '✓ SP sp_visualizar_historial_pagos creado exitosamente con correcciones de tipos';
+PRINT ' SP sp_visualizar_historial_pagos creado exitosamente con correcciones de tipos';
 GO
 
 
