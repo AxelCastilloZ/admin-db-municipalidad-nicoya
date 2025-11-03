@@ -28,7 +28,7 @@ GO
 EXEC xp_cmdshell 'mkdir C:\Backups_Nicoya', NO_OUTPUT;
 GO
 
-PRINT '✓ Carpeta C:\Backups_Nicoya creada';
+PRINT ' Carpeta C:\Backups_Nicoya creada';
 GO
 
 -- ============================================
@@ -103,7 +103,7 @@ EXEC sp_add_jobserver
     @job_name = N'Backup_Full_Nicoya_Cada2Dias';
 GO
 
-PRINT '✓ Job Backup COMPLETO configurado exitosamente';
+PRINT ' Job Backup COMPLETO configurado exitosamente';
 GO
 
 -- ============================================
@@ -151,7 +151,7 @@ WITH
     COMPRESSION,
     STATS = 10;
 
-PRINT ''✓ Backup DIFERENCIAL ejecutado: '' + @RutaBackup;
+PRINT '' Backup DIFERENCIAL ejecutado: '' + @RutaBackup;
 ',
     @database_name = N'master',
     @on_success_action = 1,
@@ -179,30 +179,10 @@ EXEC sp_add_jobserver
     @job_name = N'Backup_Diff_Nicoya_Diario';
 GO
 
-PRINT '✓ Job Backup DIFERENCIAL configurado exitosamente';
+PRINT ' Job Backup DIFERENCIAL configurado exitosamente';
 GO
 
--- ============================================
--- PASO 4: VERIFICAR CONFIGURACIÓN
--- ============================================
-PRINT '';
-PRINT '========================================';
-PRINT 'CONFIGURACIÓN COMPLETADA';
-PRINT '========================================';
-PRINT '';
-PRINT 'Jobs creados:';
-PRINT '1. Backup_Full_Nicoya_Cada2Dias  → Cada 2 días a las 11:00 PM';
-PRINT '2. Backup_Diff_Nicoya_Diario     → Diario a las 11:00 PM';
-PRINT '';
-PRINT 'Ubicación de backups: C:\Backups_Nicoya\';
-PRINT '';
-PRINT '¿Qué hacer ahora?';
-PRINT '1. Verificar que SQL Server Agent esté corriendo';
-PRINT '2. Ejecutar un backup manual de prueba (ver script de prueba)';
-PRINT '3. Compartir archivos .bak con el equipo';
-PRINT '';
-PRINT '========================================';
-GO
+
 
 -- ============================================
 -- CONSULTA: Ver estado de los jobs
