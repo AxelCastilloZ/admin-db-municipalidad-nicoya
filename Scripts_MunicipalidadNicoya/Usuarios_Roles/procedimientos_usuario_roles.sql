@@ -324,7 +324,6 @@ BEGIN
 END
 GO
 
--- SP: Actualizar Usuario
 CREATE OR ALTER PROCEDURE sp_Usuario_Actualizar
     @usuario_id INT,
     @nombre VARCHAR(50),
@@ -337,20 +336,30 @@ BEGIN
     SET NOCOUNT ON;
     
     BEGIN TRY
+        -- Verificar que el usuario existe
         IF NOT EXISTS (SELECT 1 FROM Usuario WHERE usuario_id = @usuario_id)
         BEGIN
             RAISERROR('El usuario no existe', 16, 1);
             RETURN;
         END
         
+        -- Verificar que el rol existe
+        IF NOT EXISTS (SELECT 1 FROM Rol WHERE rol_id = @rol_id)
+        BEGIN
+            RAISERROR('El rol especificado no existe', 16, 1);
+            RETURN;
+        END
+        
+        -- Verificar que el email no esté en uso por otro usuario
         IF EXISTS (SELECT 1 FROM Usuario 
                    WHERE email = @email 
                    AND usuario_id <> @usuario_id)
         BEGIN
-            RAISERROR('El email ya est� en uso', 16, 1);
+            RAISERROR('El email ya está en uso', 16, 1);
             RETURN;
         END
         
+        -- Actualizar el usuario
         UPDATE Usuario
         SET 
             nombre = @nombre,
@@ -360,6 +369,23 @@ BEGIN
             rol_id = @rol_id
         WHERE usuario_id = @usuario_id;
         
+        SELECT 
+            u.usuario_id,
+            u.nombre,
+            u.apellido1,
+            u.apellido2,
+            u.email,
+            u.rol_id,
+            r.nombre as rol_nombre,
+            u.activo,
+            u.bloqueado,
+            u.intentos_fallidos,
+            u.ultimo_acceso,
+            u.fecha_creacion
+        FROM Usuario u
+        INNER JOIN Rol r ON u.rol_id = r.rol_id
+        WHERE u.usuario_id = @usuario_id;
+        
     END TRY
     BEGIN CATCH
         DECLARE @ErrorMessage NVARCHAR(4000) = ERROR_MESSAGE();
@@ -368,17 +394,56 @@ BEGIN
 END
 GO
 
--- SP: Eliminar Usuario 
+PRINT ' sp_Usuario_Actualizar modificado';
+GO
+
+PRINT 'Modificando sp_Usuario_Eliminar...';
+GO
+
+-- =============================================
+-- SP 2: Eliminar Usuario 
+-- =============================================
 CREATE OR ALTER PROCEDURE sp_Usuario_Eliminar
     @usuario_id INT
 AS
 BEGIN
     SET NOCOUNT ON;
     
-    UPDATE Usuario
-    SET activo = 0
-    WHERE usuario_id = @usuario_id;
+    BEGIN TRY
+        -- Verificar que el usuario existe
+        IF NOT EXISTS (SELECT 1 FROM Usuario WHERE usuario_id = @usuario_id)
+        BEGIN
+            RAISERROR('El usuario no existe', 16, 1);
+            RETURN;
+        END
+        
+        -- Verificar que el usuario no esté ya inactivo
+        IF EXISTS (SELECT 1 FROM Usuario WHERE usuario_id = @usuario_id AND activo = 0)
+        BEGIN
+            RAISERROR('El usuario ya está inactivo', 16, 1);
+            RETURN;
+        END
+        
+        -- Realizar eliminación lógica
+        UPDATE Usuario
+        SET activo = 0
+        WHERE usuario_id = @usuario_id;
+        
+        -- Retornar confirmación
+        SELECT 
+            @usuario_id AS usuario_id,
+            'Usuario desactivado exitosamente' AS mensaje,
+            1 AS success;
+        
+    END TRY
+    BEGIN CATCH
+        DECLARE @ErrorMessage NVARCHAR(4000) = ERROR_MESSAGE();
+        RAISERROR(@ErrorMessage, 16, 1);
+    END CATCH
 END
+GO
+
+PRINT ' sp_Usuario_Eliminar ';
 GO
 
 -- SP: Listar Roles
