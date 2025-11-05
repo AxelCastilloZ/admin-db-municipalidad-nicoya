@@ -392,3 +392,105 @@ BEGIN
     END CATCH
 END;
 GO
+
+
+-- =============================================
+-- SP: Actualizar DIM_Rubro 
+-- =============================================
+
+CREATE OR ALTER PROCEDURE DM.sp_Actualizar_DIM_Rubro
+AS
+BEGIN
+    SET NOCOUNT ON;
+    
+    DECLARE @registros_nuevos INT = 0;
+    DECLARE @registros_actualizados INT = 0;
+    
+    BEGIN TRY
+        BEGIN TRANSACTION;
+        
+        INSERT INTO DM.DIM_Rubro (
+            rubro_id, 
+            nombre, 
+            descripcion, 
+            periodicidad, 
+            tarifa_base,
+            aplica_recargo, 
+            aplica_intereses, 
+            tasa_interes, 
+            tasa_recargo
+        )
+        SELECT 
+            r.rubro_id, 
+            r.nombre, 
+            r.descripcion, 
+            r.periodicidad, 
+            r.tarifa_base,
+            r.aplica_recargo, 
+            r.aplica_intereses, 
+            r.tasa_interes, 
+            r.tasa_recargo
+        FROM MunicipalidadNicoya.dbo.Rubro r
+        WHERE r.vigencia = 1
+          AND NOT EXISTS (
+              SELECT 1 FROM DM.DIM_Rubro dr 
+              WHERE dr.rubro_id = r.rubro_id
+          );
+        
+        SET @registros_nuevos = @@ROWCOUNT;
+        
+        UPDATE dr
+        SET 
+            dr.nombre = r.nombre,
+            dr.descripcion = r.descripcion,
+            dr.periodicidad = r.periodicidad,
+            dr.tarifa_base = r.tarifa_base,
+            dr.aplica_recargo = r.aplica_recargo,
+            dr.aplica_intereses = r.aplica_intereses,
+            dr.tasa_interes = r.tasa_interes,
+            dr.tasa_recargo = r.tasa_recargo
+        FROM DM.DIM_Rubro dr
+        INNER JOIN MunicipalidadNicoya.dbo.Rubro r ON dr.rubro_id = r.rubro_id
+        WHERE r.vigencia = 1;
+        
+        SET @registros_actualizados = @@ROWCOUNT;
+        
+        COMMIT TRANSACTION;
+        
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH
+END;
+GO
+
+CREATE OR ALTER PROCEDURE DM.sp_Actualizar_Datamart_Completo
+AS
+BEGIN
+    SET NOCOUNT ON;
+    
+    DECLARE @fecha_inicio DATETIME = GETDATE();
+    DECLARE @fecha_fin DATETIME;
+    
+    BEGIN TRY
+        EXEC DM.sp_Actualizar_DIM_Contribuyente;
+        EXEC DM.sp_Actualizar_DIM_Inmueble;
+        EXEC DM.sp_Actualizar_DIM_Rubro;  
+        EXEC DM.sp_Actualizar_DIM_Tramite;
+        EXEC DM.sp_Actualizar_FACT_Factura;
+        
+        SET @fecha_fin = GETDATE();
+        
+        PRINT 'DataMart actualizado en ' + 
+              CAST(DATEDIFF(SECOND, @fecha_inicio, @fecha_fin) AS VARCHAR(10)) + ' segundos';
+        
+    END TRY
+    BEGIN CATCH
+        THROW;
+    END CATCH
+END;
+GO
+
+
