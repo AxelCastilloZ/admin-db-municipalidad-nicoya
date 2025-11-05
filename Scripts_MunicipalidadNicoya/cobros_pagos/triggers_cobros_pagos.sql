@@ -124,6 +124,45 @@ GO
 
 
 
+-- Eliminar trigger si existe
+IF OBJECT_ID('dbo.trg_verificar_vencimiento_post_emision', 'TR') IS NOT NULL
+    DROP TRIGGER dbo.trg_verificar_vencimiento_post_emision;
+GO
+
+CREATE TRIGGER dbo.trg_verificar_vencimiento_post_emision
+ON dbo.Factura
+AFTER INSERT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    
+    -- La fecha actual (sólo fecha)
+    DECLARE @fecha_actual DATE = CAST(GETDATE() AS DATE);
+    
+    -- =============================================
+    -- ACTUALIZAR FACTURAS RECIÉN INSERTADAS SI ESTÁN VENCIDAS
+    -- =============================================
+    
+    UPDATE f
+    SET 
+        estado_factura = 'Vencida'
+    -- Se unen las facturas recién insertadas (INSERTED) con la tabla Factura (f)
+    FROM dbo.Factura f
+    INNER JOIN INSERTED i ON f.factura_id = i.factura_id
+    WHERE 
+        -- Condición 1: El estado actual debe ser 'Pendiente' (estado por defecto de la inserción)
+        f.estado_factura = 'Pendiente' 
+        -- Condición 2: La fecha de vencimiento es anterior a la fecha de hoy
+        AND f.fecha_vencimiento < @fecha_actual;
+        
+    -- NOTA: No es necesario usar la tabla DELETED ya que este es un trigger AFTER INSERT.
+    -- Los triggers de auditoría existentes (si los hubiera) registrarán este cambio de estado.
+END
+GO
+
+PRINT ' Trigger trg_verificar_vencimiento_post_emision creado exitosamente';
+
+
 
 
 
