@@ -1,6 +1,6 @@
--- =============================================
+ï»¿-- =============================================
 -- PROCEDIMIENTOS ALMACENADOS -  DATAMART
--- Automatización del proceso ETL para actualizaciones incrementales
+-- AutomatizaciÃ³n del proceso ETL para actualizaciones incrementales
 -- Base de datos: MunicipalidadNicoyaDataMart
 -- Origen: MunicipalidadNicoya
 -- =============================================
@@ -33,18 +33,18 @@ BEGIN
             c.contribuyente_id,
             COALESCE(cf.nombre, cj.nombre_empresa, 'Sin nombre') AS nombre,
             CASE 
-                WHEN cf.contribuyente_id IS NOT NULL THEN 'Física'
-                WHEN cj.contribuyente_id IS NOT NULL THEN 'Jurídica'
-                ELSE 'Física'
+                WHEN cf.contribuyente_id IS NOT NULL THEN 'FÃ­sica'
+                WHEN cj.contribuyente_id IS NOT NULL THEN 'JurÃ­dica'
+                ELSE 'FÃ­sica'
             END AS tipo_contribuyente,
             COALESCE(cf.cedula, cj.cedula_juridica, 'N/A') AS cedula,
             CASE
-                WHEN c.direccion LIKE '%Belén%' OR c.direccion LIKE '%Belen%' OR c.direccion LIKE '%Nosarita%' THEN 'Belén de Nosarita'
+                WHEN c.direccion LIKE '%BelÃ©n%' OR c.direccion LIKE '%Belen%' OR c.direccion LIKE '%Nosarita%' THEN 'BelÃ©n de Nosarita'
                 WHEN c.direccion LIKE '%Nosara%' THEN 'Nosara'
-                WHEN c.direccion LIKE '%Sámara%' OR c.direccion LIKE '%Samara%' THEN 'Sámara'
+                WHEN c.direccion LIKE '%SÃ¡mara%' OR c.direccion LIKE '%Samara%' THEN 'SÃ¡mara'
                 WHEN c.direccion LIKE '%Quebrada Honda%' OR c.direccion LIKE '%Qda Honda%' THEN 'Quebrada Honda'
                 WHEN c.direccion LIKE '%San Antonio%' OR c.direccion LIKE '%Sn Antonio%' THEN 'San Antonio'
-                WHEN c.direccion LIKE '%Mansión%' OR c.direccion LIKE '%Mansion%' THEN 'Mansión'
+                WHEN c.direccion LIKE '%MansiÃ³n%' OR c.direccion LIKE '%Mansion%' THEN 'MansiÃ³n'
                 WHEN c.direccion LIKE '%Nicoya%' OR c.direccion LIKE '%Centro%' OR c.direccion LIKE '%centro%' THEN 'Nicoya'
                 ELSE 'Nicoya'
             END AS distrito,
@@ -250,14 +250,21 @@ BEGIN
             f.factura_id,
             dt_emision.tiempo_id AS tiempo_emision_id,
             dt_venc.tiempo_id AS tiempo_vencimiento_id,
-            (SELECT t.contribuyente_id 
-             FROM MunicipalidadNicoya.dbo.Tramite t 
-             WHERE t.tramite_id = f.tramite_id) AS contribuyente_id,
+            COALESCE(
+                (SELECT t.contribuyente_id 
+                 FROM MunicipalidadNicoya.dbo.Tramite t 
+                 WHERE t.tramite_id = f.tramite_id),
+                (SELECT TOP 1 ci.contribuyente_id
+                 FROM MunicipalidadNicoya.dbo.Contribuyente_Inmueble ci
+                 WHERE ci.inmueble_id = f.inmueble_id
+                 ORDER BY ci.porcentaje_propiedad DESC)
+            ) AS contribuyente_id,
             f.inmueble_id,
             (SELECT TOP 1 df.rubro_id 
              FROM MunicipalidadNicoya.dbo.Detalle_factura df 
              WHERE df.factura_id = f.factura_id 
-             ORDER BY df.monto_unitario * df.cantidad DESC) AS rubro_id,
+               AND df.rubro_id IS NOT NULL
+             ORDER BY (df.monto_unitario * df.cantidad - ISNULL(df.descuento_linea, 0)) DESC) AS rubro_id,
             f.tramite_id,
             ef.estado_id AS estado_factura_id,
             f.monto_base,
@@ -281,7 +288,7 @@ BEGIN
             ) AS saldo_pendiente,
             CASE 
                 WHEN f.fecha_vencimiento < CAST(GETDATE() AS DATE) 
-                     AND f.estado_factura = 'Pendiente' 
+                     AND f.estado_factura IN ('Pendiente', 'Vencida')
                 THEN 1 
                 ELSE 0 
             END AS esta_vencida,
@@ -291,7 +298,7 @@ BEGIN
             END AS esta_pagada,
             CASE 
                 WHEN f.fecha_vencimiento < CAST(GETDATE() AS DATE) 
-                     AND f.estado_factura = 'Pendiente'
+                     AND f.estado_factura IN ('Pendiente', 'Vencida')
                 THEN DATEDIFF(DAY, f.fecha_vencimiento, GETDATE())
                 ELSE NULL
             END AS dias_mora
@@ -305,6 +312,12 @@ BEGIN
         WHERE NOT EXISTS (
             SELECT 1 FROM DM.FACT_Factura ff 
             WHERE ff.factura_id = f.factura_id
+        )
+        AND EXISTS (
+            SELECT 1 
+            FROM MunicipalidadNicoya.dbo.Detalle_factura df 
+            WHERE df.factura_id = f.factura_id 
+              AND df.rubro_id IS NOT NULL
         );
         
         SET @registros_nuevos = @@ROWCOUNT;
@@ -326,7 +339,7 @@ BEGIN
             ),
             ff.esta_vencida = CASE 
                 WHEN f.fecha_vencimiento < CAST(GETDATE() AS DATE) 
-                     AND f.estado_factura = 'Pendiente' 
+                     AND f.estado_factura IN ('Pendiente', 'Vencida')
                 THEN 1 
                 ELSE 0 
             END,
@@ -336,7 +349,7 @@ BEGIN
             END,
             ff.dias_mora = CASE 
                 WHEN f.fecha_vencimiento < CAST(GETDATE() AS DATE) 
-                     AND f.estado_factura = 'Pendiente'
+                     AND f.estado_factura IN ('Pendiente', 'Vencida')
                 THEN DATEDIFF(DAY, f.fecha_vencimiento, GETDATE())
                 ELSE NULL
             END

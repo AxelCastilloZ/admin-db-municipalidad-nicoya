@@ -38,13 +38,15 @@ SELECT
          WHERE t.tramite_id = f.tramite_id),
         (SELECT TOP 1 ci.contribuyente_id
          FROM MunicipalidadNicoya.dbo.Contribuyente_Inmueble ci
-         WHERE ci.inmueble_id = f.inmueble_id)
+         WHERE ci.inmueble_id = f.inmueble_id
+         ORDER BY ci.porcentaje_propiedad DESC)
     ) AS contribuyente_id,
     f.inmueble_id,
     (SELECT TOP 1 df.rubro_id 
      FROM MunicipalidadNicoya.dbo.Detalle_factura df 
      WHERE df.factura_id = f.factura_id 
-     ORDER BY (df.monto_unitario * df.cantidad - df.descuento_linea) DESC) AS rubro_id,
+       AND df.rubro_id IS NOT NULL
+     ORDER BY (df.monto_unitario * df.cantidad - ISNULL(df.descuento_linea, 0)) DESC) AS rubro_id,
     f.tramite_id,
     ef.estado_id,
     f.monto_base,
@@ -79,7 +81,13 @@ SELECT
 FROM MunicipalidadNicoya.dbo.Factura f
 INNER JOIN DM.DIM_Tiempo dt_emision ON CAST(f.fecha_emision AS DATE) = dt_emision.fecha
 INNER JOIN DM.DIM_Tiempo dt_venc ON f.fecha_vencimiento = dt_venc.fecha
-INNER JOIN DM.DIM_Estado_Factura ef ON f.estado_factura = ef.estado;
+INNER JOIN DM.DIM_Estado_Factura ef ON f.estado_factura = ef.estado
+WHERE EXISTS (
+    SELECT 1 
+    FROM MunicipalidadNicoya.dbo.Detalle_factura df 
+    WHERE df.factura_id = f.factura_id 
+      AND df.rubro_id IS NOT NULL
+);
 GO
 
 SELECT 
