@@ -1646,7 +1646,86 @@ GO
 
 
 
+-- SP: Actualizar Inmueble
+IF OBJECT_ID('sp_Inmueble_Actualizar', 'P') IS NOT NULL
+    DROP PROCEDURE sp_Inmueble_Actualizar;
+GO
 
+CREATE PROCEDURE sp_Inmueble_Actualizar
+    @inmueble_id INT,
+    @direccion_exacta VARCHAR(255),
+    @area_terreno DECIMAL(10,2),
+    @valor_fiscal DECIMAL(18,2),
+    @tipo_uso_inmueble_id INT,
+    @estado_ocupacional VARCHAR(50) = NULL
+AS
+BEGIN
+    SET NOCOUNT ON;
+    
+    DECLARE @RowsAffected INT;
+
+    BEGIN TRY
+        -- Validar que el inmueble existe
+        IF NOT EXISTS (SELECT 1 FROM dbo.Inmueble WHERE inmueble_id = @inmueble_id)
+        BEGIN
+            THROW 50001, 'El inmueble no existe', 1;
+        END
+
+        -- Validar que el tipo de uso exista
+        IF NOT EXISTS (SELECT 1 FROM dbo.TipoUsoInmueble WHERE tipo_uso_inmueble_id = @tipo_uso_inmueble_id)
+        BEGIN
+            THROW 50002, 'El tipo de uso del inmueble no existe', 1;
+        END
+
+        -- Validar área terreno > 0
+        IF @area_terreno <= 0
+        BEGIN
+            THROW 50003, 'El área del terreno debe ser mayor a 0', 1;
+        END
+
+        -- Validar valor fiscal >= 0
+        IF @valor_fiscal < 0
+        BEGIN
+            THROW 50004, 'El valor fiscal no puede ser negativo', 1;
+        END
+
+        -- Validar dirección no vacía
+        IF NULLIF(LTRIM(RTRIM(@direccion_exacta)), '') IS NULL
+        BEGIN
+            THROW 50005, 'La dirección exacta es obligatoria', 1;
+        END
+
+        BEGIN TRANSACTION;
+
+        UPDATE dbo.Inmueble
+        SET 
+            direccion_exacta = @direccion_exacta,
+            area_terreno = @area_terreno,
+            valor_fiscal = @valor_fiscal,
+            tipo_uso_inmueble_id = @tipo_uso_inmueble_id,
+            estado_ocupacional = @estado_ocupacional
+        WHERE inmueble_id = @inmueble_id;
+
+        SET @RowsAffected = @@ROWCOUNT;
+
+        COMMIT TRANSACTION;
+
+        -- Retornar resultado
+        SELECT @RowsAffected AS RowsAffected, 'SUCCESS' AS Status;
+
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+
+        -- Relanzar el error para que lo capture el C#
+        THROW;
+    END CATCH
+END;
+GO
+
+PRINT 'SP sp_Inmueble_Actualizar creado correctamente con validaciones y transacción';
+GO
 
 
 
